@@ -834,13 +834,13 @@ local function findRemote(pattern)
 end
 
 -- Helper: fire remote safely
-local function fireRemote(remote, ...)
+local function fireRemote(remote, a, b, c, d)
     if not remote then return end
     pcall(function()
         if remote:IsA("RemoteEvent") then
-            remote:FireServer(...)
+            remote:FireServer(a, b, c, d)
         elseif remote:IsA("RemoteFunction") then
-            remote:InvokeServer(...)
+            remote:InvokeServer(a, b, c, d)
         end
     end)
 end
