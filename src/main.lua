@@ -970,7 +970,8 @@ local function scanTeleportLocations()
     -- Search patterns for each location
     local locationPatterns = {
         ["Basketball Court"] = {"basketball", "bball", "court"},
-        ["Gun Store"] = {"gun store", "gunstore", "gun shop", "gunshop", "ammu", "weapons"},
+        ["Gun Store 1"] = {"gun store", "gunstore", "gun shop", "gunshop", "ammu", "weapons"},
+        ["Gun Store 2"] = {"gun store", "gunstore", "gun shop", "gunshop", "ammu", "weapons"},
         ["Bank"] = {"bank", "vault"},
         ["Hospital"] = {"hospital", "hosp", "medical", "clinic"},
         ["Police Station"] = {"police", "pd", "station", "cop"},
@@ -981,58 +982,61 @@ local function scanTeleportLocations()
         ["Clothing Store"] = {"clothing", "clothes", "fashion", "drip"},
         ["Barber Shop"] = {"barber", "haircut", "barbershop"},
     }
+    
+    -- Track found count for locations with multiple instances (Gun Store 1, 2)
+    local foundCounts = {}
 
+    -- Collect all matching positions per pattern group
+    local gunStorePositions = {}
+    
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if (obj:IsA("BasePart") or obj:IsA("Model") or obj:IsA("SpawnLocation")) then
             local name = obj.Name:lower()
+            local parentName = obj.Parent and obj.Parent.Name:lower() or ""
+            
             for location, patterns in pairs(locationPatterns) do
-                if not TeleportLocations[location] then
-                    for _, pattern in ipairs(patterns) do
-                        if name:find(pattern) then
-                            local pos
-                            if obj:IsA("Model") then
-                                pcall(function()
-                                    if obj.PrimaryPart then
-                                        pos = obj.PrimaryPart.CFrame
-                                    else
-                                        pos = obj:GetBoundingBox()
+                for _, pattern in ipairs(patterns) do
+                    if name:find(pattern) or parentName:find(pattern) then
+                        local pos
+                        if obj:IsA("Model") then
+                            pcall(function()
+                                if obj.PrimaryPart then
+                                    pos = obj.PrimaryPart.CFrame
+                                else
+                                    pos = obj:GetBoundingBox()
+                                end
+                            end)
+                        else
+                            pos = obj.CFrame
+                        end
+                        if pos then
+                            -- Handle gun stores specially (multiple)
+                            if location:find("Gun Store") then
+                                local isDuplicate = false
+                                for _, existing in ipairs(gunStorePositions) do
+                                    if (existing.Position - pos.Position).Magnitude < 50 then
+                                        isDuplicate = true
+                                        break
                                     end
-                                end)
-                            else
-                                pos = obj.CFrame
-                            end
-                            if pos then
+                                end
+                                if not isDuplicate then
+                                    table.insert(gunStorePositions, pos + Vector3.new(0, 5, 0))
+                                end
+                            elseif not TeleportLocations[location] then
                                 TeleportLocations[location] = pos + Vector3.new(0, 5, 0)
                             end
-                            break
                         end
+                        break
                     end
                 end
             end
         end
     end
-
-    -- Also check for teleport/spawn parts named after locations
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = obj.Name:lower()
-            -- Check for generic teleport/spawn markers
-            if name:find("tp") or name:find("spawn") or name:find("teleport") or name:find("location") then
-                for location, patterns in pairs(locationPatterns) do
-                    if not TeleportLocations[location] then
-                        -- Check parent names too
-                        local parentName = obj.Parent and obj.Parent.Name:lower() or ""
-                        for _, pattern in ipairs(patterns) do
-                            if name:find(pattern) or parentName:find(pattern) then
-                                TeleportLocations[location] = obj.CFrame + Vector3.new(0, 5, 0)
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
+    
+    -- Assign gun store positions
+    if gunStorePositions[1] then TeleportLocations["Gun Store 1"] = gunStorePositions[1] end
+    if gunStorePositions[2] then TeleportLocations["Gun Store 2"] = gunStorePositions[2]
+    elseif gunStorePositions[1] then TeleportLocations["Gun Store 2"] = gunStorePositions[1] end
 end
 
 -- Scan on load
@@ -1280,21 +1284,53 @@ addButton(miscTab, "Purchase", "", function()
 end)
 
 addSection(miscTab, "Teleport To Location")
-addDropdown(miscTab, "Teleport Options", {"Basketball Court", "Gun Store", "Bank", "Hospital", "Police Station", "Car Dealer", "Studio", "Apartments", "Gas Station", "Clothing Store", "Barber Shop"}, "Basketball Court", function(v) Config.Misc.TeleportLocation = v end)
-addButton(miscTab, "Teleport", "Scans map for location", function()
+addDropdown(miscTab, "Teleport Options", {"Basketball Court", "Gun Store 1", "Gun Store 2", "Bank", "Hospital", "Police Station", "Car Dealer", "Studio", "Apartments", "Gas Station", "Clothing Store", "Barber Shop"}, "Basketball Court", function(v) Config.Misc.TeleportLocation = v end)
+addButton(miscTab, "Teleport", "Smooth teleport - undetectable", function()
     pcall(function()
         local loc = Config.Misc.TeleportLocation
         local cf = TeleportLocations[loc]
-        -- Re-scan if not found
         if not cf then
             scanTeleportLocations()
             cf = TeleportLocations[loc]
         end
         if cf and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = cf
+            local hrp = LocalPlayer.Character.HumanoidRootPart
+            local startPos = hrp.CFrame
+            local targetPos = cf
+            local distance = (targetPos.Position - startPos.Position).Magnitude
+            
+            -- Smooth teleport: move in small increments to avoid detection
+            local steps = math.max(math.floor(distance / 50), 5)
+            local stepTime = 0.03
+            
+            -- Temporarily disable collision during teleport
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+            
+            for i = 1, steps do
+                if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
+                local alpha = i / steps
+                hrp.CFrame = startPos:Lerp(targetPos, alpha)
+                task.wait(stepTime)
+            end
+            
+            -- Final position
+            hrp.CFrame = targetPos
+            
+            -- Re-enable collision
+            task.wait(0.1)
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.CanCollide = true
+                end
+            end
+            
             print("[Synapse-Xenon] Teleported to " .. loc)
         else
-            print("[Synapse-Xenon] Could not find location: " .. loc .. ". Try walking closer to it first.")
+            print("[Synapse-Xenon] Could not find location: " .. loc)
         end
     end)
 end)
