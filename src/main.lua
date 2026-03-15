@@ -261,11 +261,11 @@ ContentArea.ClipsDescendants = true
 ContentArea.Parent = MainFrame
 
 ------------------------------------------------------------
--- Tab System
+-- Tab System with Sub-Tabs
 ------------------------------------------------------------
-local tabs = {}
-local activeTab = nil
-local tabButtons = {}
+local sidebarTabs = {}
+local allSubPages = {}
+local activeMainTab = nil
 
 local function createScrollFrame(parent)
     local scroll = Instance.new("ScrollingFrame")
@@ -294,56 +294,147 @@ local function createScrollFrame(parent)
     return scroll
 end
 
-local function addTab(name, icon)
-    local tabFrame = Instance.new("Frame")
-    tabFrame.Name = name
-    tabFrame.Size = UDim2.new(1, 0, 1, 0)
-    tabFrame.BackgroundTransparency = 1
-    tabFrame.Visible = false
-    tabFrame.Parent = ContentArea
+-- Sub-tab bar at the top of content area
+local SubTabBar = Instance.new("Frame")
+SubTabBar.Name = "SubTabBar"
+SubTabBar.Size = UDim2.new(1, 0, 0, 32)
+SubTabBar.Position = UDim2.new(0, 0, 0, 0)
+SubTabBar.BackgroundTransparency = 1
+SubTabBar.Parent = ContentArea
 
-    local scroll = createScrollFrame(tabFrame)
+-- Adjusted content below sub-tab bar
+local SubContent = Instance.new("Frame")
+SubContent.Name = "SubContent"
+SubContent.Size = UDim2.new(1, 0, 1, -34)
+SubContent.Position = UDim2.new(0, 0, 0, 34)
+SubContent.BackgroundTransparency = 1
+SubContent.ClipsDescendants = true
+SubContent.Parent = ContentArea
+
+local function clearSubTabBar()
+    for _, c in ipairs(SubTabBar:GetChildren()) do c:Destroy() end
+end
+
+local function addSidebarTab(name, icon, subTabNames)
+    -- Container for all sub-pages of this sidebar tab
+    local container = Instance.new("Frame")
+    container.Name = name
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.Visible = false
+    container.Parent = SubContent
+
+    local subPages = {}
+    local subBtns = {}
+
+    for i, subName in ipairs(subTabNames) do
+        local pageFrame = Instance.new("Frame")
+        pageFrame.Name = subName
+        pageFrame.Size = UDim2.new(1, 0, 1, 0)
+        pageFrame.BackgroundTransparency = 1
+        pageFrame.Visible = (i == 1)
+        pageFrame.Parent = container
+
+        local scroll = createScrollFrame(pageFrame)
+        local pageData = { frame = pageFrame, scroll = scroll, name = subName, order = 0, parentName = name }
+        subPages[subName] = pageData
+        table.insert(allSubPages, pageData)
+    end
 
     -- Sidebar button
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -10, 0, 32)
-    btn.Position = UDim2.new(0, 5, 0, 5 + (#tabs) * 37)
-    btn.BackgroundColor3 = COLORS.sidebar
+    btn.Position = UDim2.new(0, 5, 0, 8 + (#sidebarTabs) * 37)
     btn.BackgroundTransparency = 1
     btn.BorderSizePixel = 0
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 13
     btn.TextColor3 = COLORS.dimtext
-    btn.Text = (icon or "") .. "  " .. name
+    btn.Text = "  " .. (icon or "") .. "  " .. name
     btn.TextXAlignment = Enum.TextXAlignment.Left
     btn.Parent = Sidebar
-
-    local btnPad = Instance.new("UIPadding")
-    btnPad.PaddingLeft = UDim.new(0, 12)
-    btnPad.Parent = btn
 
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0, 6)
     btnCorner.Parent = btn
 
-    local tabData = { frame = tabFrame, scroll = scroll, btn = btn, name = name, order = 0 }
-    table.insert(tabs, tabData)
-    tabButtons[name] = tabData
+    local tabData = { container = container, subPages = subPages, subTabNames = subTabNames, btn = btn, name = name }
+    table.insert(sidebarTabs, tabData)
+
+    local function showSubTab(subName)
+        for sn, sp in pairs(subPages) do
+            sp.frame.Visible = (sn == subName)
+        end
+        -- Update sub-tab bar button highlights
+        for _, child in ipairs(SubTabBar:GetChildren()) do
+            if child:IsA("TextButton") then
+                if child.Name == subName then
+                    child.BackgroundColor3 = COLORS.accent
+                    child.BackgroundTransparency = 0
+                    child.TextColor3 = Color3.new(1, 1, 1)
+                else
+                    child.BackgroundTransparency = 1
+                    child.TextColor3 = COLORS.dimtext
+                end
+            end
+        end
+    end
+
+    local function buildSubTabBar()
+        clearSubTabBar()
+        local xOff = 8
+        for i, subName in ipairs(subTabNames) do
+            local subBtn = Instance.new("TextButton")
+            subBtn.Name = subName
+            subBtn.Size = UDim2.new(0, 10 + #subName * 8, 0, 26)
+            subBtn.Position = UDim2.new(0, xOff, 0, 3)
+            subBtn.BackgroundTransparency = (i == 1) and 0 or 1
+            subBtn.BackgroundColor3 = COLORS.accent
+            subBtn.BorderSizePixel = 0
+            subBtn.Font = Enum.Font.GothamBold
+            subBtn.TextSize = 12
+            subBtn.TextColor3 = (i == 1) and Color3.new(1, 1, 1) or COLORS.dimtext
+            subBtn.Text = subName
+            subBtn.Parent = SubTabBar
+
+            local subBtnCorner = Instance.new("UICorner")
+            subBtnCorner.CornerRadius = UDim.new(0, 6)
+            subBtnCorner.Parent = subBtn
+
+            subBtn.MouseButton1Click:Connect(function()
+                showSubTab(subName)
+            end)
+
+            xOff = xOff + subBtn.Size.X.Offset + 6
+        end
+    end
 
     btn.MouseButton1Click:Connect(function()
-        for _, t in ipairs(tabs) do
-            t.frame.Visible = false
-            t.btn.BackgroundTransparency = 1
-            t.btn.TextColor3 = COLORS.dimtext
+        -- Hide all sidebar tab containers
+        for _, st in ipairs(sidebarTabs) do
+            st.container.Visible = false
+            st.btn.BackgroundTransparency = 1
+            st.btn.TextColor3 = COLORS.dimtext
         end
-        tabFrame.Visible = true
+        -- Show this one
+        container.Visible = true
         btn.BackgroundTransparency = 0
         btn.BackgroundColor3 = COLORS.accent
         btn.TextColor3 = Color3.new(1, 1, 1)
-        activeTab = name
+        activeMainTab = name
+        -- Build sub-tab bar
+        buildSubTabBar()
+        -- Show first sub-tab
+        showSubTab(subTabNames[1])
     end)
 
-    return tabData
+    return subPages
+end
+
+-- Helper: addTab now returns a sub-page directly (for backward compat)
+local function addTab(name, icon)
+    local pages = addSidebarTab(name, icon, {name})
+    return pages[name]
 end
 
 -- UI Element builders
@@ -704,8 +795,9 @@ end
 -- BUILD TABS
 ------------------------------------------------------------
 
--- === THA BRONX 3 (MAIN) TAB ===
-local mainTab = addTab("Tha Bronx 3", "")
+-- === THA BRONX 3 (with sub-tabs: Main, Money, Miscellaneous) ===
+local bronxPages = addSidebarTab("Tha Bronx 3", "\xF0\x9F\x8F\xA0", {"Main", "Money", "Miscellaneous"})
+local mainTab = bronxPages["Main"]
 
 addSection(mainTab, "Select Player")
 
@@ -721,6 +813,11 @@ addSection(mainTab, "Player Options")
 addButton(mainTab, "Spectate Player", "", function()
     local t = Config.Main.SelectedPlayer
     if t then local p = Players:FindFirstChild(t); if p and p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end
+end)
+addButton(mainTab, "Stop Spectating", "", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        Camera.CameraSubject = LocalPlayer.Character.Humanoid
+    end
 end)
 addButton(mainTab, "Bring Player", "", function()
     local t = Config.Main.SelectedPlayer
@@ -745,8 +842,8 @@ addSlider(mainTab, "Fly Speed Amount", 0, 50, 7, function(v) Config.Main.FlySpee
 addToggle(mainTab, "Jump Power", false, function(v) Config.Main.JumpPower = v end)
 addSlider(mainTab, "Jump Power Amount", 0, 500, 100, function(v) Config.Main.JumpPowerAmount = v end)
 
--- === MONEY TAB ===
-local moneyTab = addTab("Money", "")
+-- === MONEY SUB-TAB (under Tha Bronx 3) ===
+local moneyTab = bronxPages["Money"]
 
 addSection(moneyTab, "Farming")
 addToggle(moneyTab, "Auto Farm Construction", false, function(v) Config.Money.AutoFarmConstruction = v end)
@@ -770,8 +867,8 @@ addToggle(moneyTab, "Auto Drop", false, function(v) Config.Money.AutoDrop = v en
 addSection(moneyTab, "Duping Section")
 addButton(moneyTab, "Duplicate Current Item", "Can Take Few Tries!", function() end)
 
--- === MISCELLANEOUS TAB ===
-local miscTab = addTab("Miscellaneous", "")
+-- === MISCELLANEOUS SUB-TAB (under Tha Bronx 3) ===
+local miscTab = bronxPages["Miscellaneous"]
 
 addSection(miscTab, "Local Player Modifications")
 addToggle(miscTab, "Infinite Stamina", false, function(v) Config.Misc.InfiniteStamina = v end)
@@ -798,43 +895,60 @@ addSection(miscTab, "Outfits")
 addDropdown(miscTab, "Select Outfit", {"Amiri Outfit", "Nike Tech", "Bape Set", "Default"}, "Amiri Outfit", function(v) Config.Misc.SelectedOutfit = v end)
 addButton(miscTab, "Apply Selected Outfit", "", function() end)
 
--- === COMBAT TAB ===
-local combatTab = addTab("Combat", "")
+-- === COMBAT TAB (with sub-tabs: Silent Aim, Aimlock) ===
+local combatPages = addSidebarTab("Combat", "\xE2\x9A\x94", {"Silent Aim", "Aimlock"})
+local combatTab = combatPages["Silent Aim"]
+local aimlockTab = combatPages["Aimlock"]
 
-addSection(combatTab, "Silent Aim - General")
-addToggle(combatTab, "Silent Aim Enabled", false, function(v) Config.Combat.SilentAim.Enabled = v end)
+-- Silent Aim sub-tab
+addSection(combatTab, "General")
+addToggle(combatTab, "Enabled", false, function(v) Config.Combat.SilentAim.Enabled = v end)
 
-addSection(combatTab, "Silent Aim - Settings")
+addSection(combatTab, "Settings")
 addToggle(combatTab, "Visible Check", false, function(v) Config.Combat.SilentAim.VisibleCheck = v end)
 addDropdown(combatTab, "Aimlock Type", {"Mouse", "Camera", "Closest"}, "Mouse", function(v) Config.Combat.SilentAim.AimlockType = v end)
 addDropdown(combatTab, "Target Parts", {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, "Head", function(v) Config.Combat.SilentAim.TargetParts = v end)
 addSlider(combatTab, "Max Distance", 0, 100, 50, function(v) Config.Combat.SilentAim.MaxDistance = v end)
 addSlider(combatTab, "Smoothness", 0, 100, 50, function(v) Config.Combat.SilentAim.Smoothness = v end)
 
-addSection(combatTab, "Silent Aim - FOV")
-addToggle(combatTab, "FOV Enabled", false, function(v) Config.Combat.SilentAim.FOVEnabled = v end)
+addSection(combatTab, "Field Of View")
+addToggle(combatTab, "Enabled", false, function(v) Config.Combat.SilentAim.FOVEnabled = v end)
 addToggle(combatTab, "Draw Circle", false, function(v) Config.Combat.SilentAim.DrawCircle = v end)
-addSlider(combatTab, "FOV Radius", 0, 100, 50, function(v) Config.Combat.SilentAim.FOVRadius = v end)
-addSlider(combatTab, "FOV Sides", 0, 100, 50, function(v) Config.Combat.SilentAim.FOVSides = v end)
 
-addSection(combatTab, "Aimlock - General")
-addToggle(combatTab, "Aimlock Enabled", false, function(v) Config.Combat.Aimlock.Enabled = v end)
+addSection(combatTab, "Field Of View Settings")
+addSlider(combatTab, "Radius", 0, 100, 50, function(v) Config.Combat.SilentAim.FOVRadius = v end)
+addSlider(combatTab, "Sides", 0, 100, 50, function(v) Config.Combat.SilentAim.FOVSides = v end)
 
-addSection(combatTab, "Aimlock - Settings")
-addToggle(combatTab, "AL Visible Check", false, function(v) Config.Combat.Aimlock.VisibleCheck = v end)
-addDropdown(combatTab, "AL Aimlock Type", {"Mouse", "Camera", "Closest"}, "Mouse", function(v) Config.Combat.Aimlock.AimlockType = v end)
-addDropdown(combatTab, "AL Target Parts", {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, "Head", function(v) Config.Combat.Aimlock.TargetParts = v end)
-addSlider(combatTab, "AL Max Distance", 0, 100, 50, function(v) Config.Combat.Aimlock.MaxDistance = v end)
-addSlider(combatTab, "AL Smoothness", 0, 100, 50, function(v) Config.Combat.Aimlock.Smoothness = v end)
+addSection(combatTab, "Snapline")
+addToggle(combatTab, "Enabled", false, function(v) Config.Combat.SilentAim.SnaplineEnabled = v end)
+addSlider(combatTab, "Snapline Thickness", 0, 100, 50, function(v) Config.Combat.SilentAim.SnaplineThickness = v end)
 
-addSection(combatTab, "Aimlock - FOV")
-addToggle(combatTab, "AL FOV Enabled", false, function(v) Config.Combat.Aimlock.FOVEnabled = v end)
-addToggle(combatTab, "AL Draw Circle", false, function(v) Config.Combat.Aimlock.DrawCircle = v end)
-addSlider(combatTab, "AL FOV Radius", 0, 100, 50, function(v) Config.Combat.Aimlock.FOVRadius = v end)
-addSlider(combatTab, "AL FOV Sides", 0, 100, 50, function(v) Config.Combat.Aimlock.FOVSides = v end)
+-- Aimlock sub-tab
+addSection(aimlockTab, "General")
+addToggle(aimlockTab, "Enabled", false, function(v) Config.Combat.Aimlock.Enabled = v end)
 
--- === VISUALS TAB ===
-local visualsTab = addTab("Visuals", "")
+addSection(aimlockTab, "Settings")
+addToggle(aimlockTab, "Visible Check", false, function(v) Config.Combat.Aimlock.VisibleCheck = v end)
+addDropdown(aimlockTab, "Aimlock Type", {"Mouse", "Camera", "Closest"}, "Mouse", function(v) Config.Combat.Aimlock.AimlockType = v end)
+addDropdown(aimlockTab, "Target Parts", {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, "Head", function(v) Config.Combat.Aimlock.TargetParts = v end)
+addSlider(aimlockTab, "Max Distance", 0, 100, 50, function(v) Config.Combat.Aimlock.MaxDistance = v end)
+addSlider(aimlockTab, "Smoothness", 0, 100, 50, function(v) Config.Combat.Aimlock.Smoothness = v end)
+
+addSection(aimlockTab, "Field Of View")
+addToggle(aimlockTab, "Enabled", false, function(v) Config.Combat.Aimlock.FOVEnabled = v end)
+addToggle(aimlockTab, "Draw Circle", false, function(v) Config.Combat.Aimlock.DrawCircle = v end)
+
+addSection(aimlockTab, "Field Of View Settings")
+addSlider(aimlockTab, "Radius", 0, 100, 50, function(v) Config.Combat.Aimlock.FOVRadius = v end)
+addSlider(aimlockTab, "Sides", 0, 100, 50, function(v) Config.Combat.Aimlock.FOVSides = v end)
+
+addSection(aimlockTab, "Snapline")
+addToggle(aimlockTab, "Enabled", false, function(v) Config.Combat.Aimlock.SnaplineEnabled = v end)
+addSlider(aimlockTab, "Snapline Thickness", 0, 100, 50, function(v) Config.Combat.Aimlock.SnaplineThickness = v end)
+
+-- === VISUALS TAB (with sub-tab: ESP) ===
+local visualsPages = addSidebarTab("Visuals", "\xF0\x9F\x91\x81", {"ESP"})
+local visualsTab = visualsPages["ESP"]
 
 addSection(visualsTab, "Enable ESP")
 addToggle(visualsTab, "Enable ESP", false, function(v) Config.Visuals.EnableESP = v end)
@@ -861,7 +975,7 @@ addSlider(visualsTab, "Fill Transparency", 0, 100, 50, function(v) Config.Visual
 addSlider(visualsTab, "Outline Transparency", 0, 100, 50, function(v) Config.Visuals.OutlineTransparency = v end)
 
 -- === SETTINGS TAB ===
-local settingsTab = addTab("Settings", "")
+local settingsTab = addTab("Settings", "\xE2\x9A\x99")
 
 addSection(settingsTab, "UI Settings")
 addButton(settingsTab, "Toggle UI (RightShift)", "", function()
@@ -871,12 +985,52 @@ addButton(settingsTab, "Destroy GUI", "", function()
     ScreenGui:Destroy()
 end)
 
--- Select first tab by default
-if tabs[1] then
-    tabs[1].btn.BackgroundTransparency = 0
-    tabs[1].btn.BackgroundColor3 = COLORS.accent
-    tabs[1].btn.TextColor3 = Color3.new(1, 1, 1)
-    tabs[1].frame.Visible = true
+-- Select first sidebar tab by default
+if sidebarTabs[1] then
+    local st = sidebarTabs[1]
+    st.container.Visible = true
+    st.btn.BackgroundTransparency = 0
+    st.btn.BackgroundColor3 = COLORS.accent
+    st.btn.TextColor3 = Color3.new(1, 1, 1)
+    -- Build sub-tab bar for first tab
+    clearSubTabBar()
+    local xOff = 8
+    for i, subName in ipairs(st.subTabNames) do
+        local subBtn = Instance.new("TextButton")
+        subBtn.Name = subName
+        subBtn.Size = UDim2.new(0, 10 + #subName * 8, 0, 26)
+        subBtn.Position = UDim2.new(0, xOff, 0, 3)
+        subBtn.BackgroundTransparency = (i == 1) and 0 or 1
+        subBtn.BackgroundColor3 = COLORS.accent
+        subBtn.BorderSizePixel = 0
+        subBtn.Font = Enum.Font.GothamBold
+        subBtn.TextSize = 12
+        subBtn.TextColor3 = (i == 1) and Color3.new(1,1,1) or COLORS.dimtext
+        subBtn.Text = subName
+        subBtn.Parent = SubTabBar
+        local sc = Instance.new("UICorner")
+        sc.CornerRadius = UDim.new(0, 6)
+        sc.Parent = subBtn
+        subBtn.MouseButton1Click:Connect(function()
+            for sn, sp in pairs(st.subPages) do
+                sp.frame.Visible = (sn == subName)
+            end
+            for _, child in ipairs(SubTabBar:GetChildren()) do
+                if child:IsA("TextButton") then
+                    if child.Name == subName then
+                        child.BackgroundColor3 = COLORS.accent; child.BackgroundTransparency = 0; child.TextColor3 = Color3.new(1,1,1)
+                    else
+                        child.BackgroundTransparency = 1; child.TextColor3 = COLORS.dimtext
+                    end
+                end
+            end
+        end)
+        xOff = xOff + subBtn.Size.X.Offset + 6
+    end
+    -- Show first sub-page
+    for sn, sp in pairs(st.subPages) do
+        sp.frame.Visible = (sn == st.subTabNames[1])
+    end
 end
 
 -- Toggle keybind
