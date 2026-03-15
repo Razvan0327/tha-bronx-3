@@ -963,20 +963,80 @@ local function doBankAction(action, amount)
     end)
 end
 
--- Teleport locations (approximate coordinates for The Bronx 3)
-local TeleportLocations = {
-    ["Basketball Court"] = CFrame.new(150, 15, -200),
-    ["Gun Store"] = CFrame.new(-50, 15, 100),
-    ["Bank"] = CFrame.new(200, 15, 50),
-    ["Hospital"] = CFrame.new(-150, 15, -50),
-    ["Police Station"] = CFrame.new(100, 15, 150),
-    ["Car Dealer"] = CFrame.new(-200, 15, 200),
-    ["Studio"] = CFrame.new(50, 15, -150),
-    ["Apartments"] = CFrame.new(-100, 15, 0),
-    ["Gas Station"] = CFrame.new(250, 15, -100),
-    ["Clothing Store"] = CFrame.new(0, 15, 250),
-    ["Barber Shop"] = CFrame.new(-75, 15, 175),
-}
+-- Teleport locations: scan the game map for actual locations
+local TeleportLocations = {}
+
+local function scanTeleportLocations()
+    -- Search patterns for each location
+    local locationPatterns = {
+        ["Basketball Court"] = {"basketball", "bball", "court"},
+        ["Gun Store"] = {"gun store", "gunstore", "gun shop", "gunshop", "ammu", "weapons"},
+        ["Bank"] = {"bank", "vault"},
+        ["Hospital"] = {"hospital", "hosp", "medical", "clinic"},
+        ["Police Station"] = {"police", "pd", "station", "cop"},
+        ["Car Dealer"] = {"car dealer", "cardealer", "dealership", "car shop"},
+        ["Studio"] = {"studio", "record", "music"},
+        ["Apartments"] = {"apartment", "apt", "home", "house"},
+        ["Gas Station"] = {"gas station", "gas", "fuel", "gasstation"},
+        ["Clothing Store"] = {"clothing", "clothes", "fashion", "drip"},
+        ["Barber Shop"] = {"barber", "haircut", "barbershop"},
+    }
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if (obj:IsA("BasePart") or obj:IsA("Model") or obj:IsA("SpawnLocation")) then
+            local name = obj.Name:lower()
+            for location, patterns in pairs(locationPatterns) do
+                if not TeleportLocations[location] then
+                    for _, pattern in ipairs(patterns) do
+                        if name:find(pattern) then
+                            local pos
+                            if obj:IsA("Model") then
+                                pcall(function()
+                                    if obj.PrimaryPart then
+                                        pos = obj.PrimaryPart.CFrame
+                                    else
+                                        pos = obj:GetBoundingBox()
+                                    end
+                                end)
+                            else
+                                pos = obj.CFrame
+                            end
+                            if pos then
+                                TeleportLocations[location] = pos + Vector3.new(0, 5, 0)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Also check for teleport/spawn parts named after locations
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local name = obj.Name:lower()
+            -- Check for generic teleport/spawn markers
+            if name:find("tp") or name:find("spawn") or name:find("teleport") or name:find("location") then
+                for location, patterns in pairs(locationPatterns) do
+                    if not TeleportLocations[location] then
+                        -- Check parent names too
+                        local parentName = obj.Parent and obj.Parent.Name:lower() or ""
+                        for _, pattern in ipairs(patterns) do
+                            if name:find(pattern) or parentName:find(pattern) then
+                                TeleportLocations[location] = obj.CFrame + Vector3.new(0, 5, 0)
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Scan on load
+pcall(scanTeleportLocations)
 
 -- Auto farm function
 local autoFarmConnections = {}
@@ -1221,12 +1281,20 @@ end)
 
 addSection(miscTab, "Teleport To Location")
 addDropdown(miscTab, "Teleport Options", {"Basketball Court", "Gun Store", "Bank", "Hospital", "Police Station", "Car Dealer", "Studio", "Apartments", "Gas Station", "Clothing Store", "Barber Shop"}, "Basketball Court", function(v) Config.Misc.TeleportLocation = v end)
-addButton(miscTab, "Teleport", "", function()
+addButton(miscTab, "Teleport", "Scans map for location", function()
     pcall(function()
         local loc = Config.Misc.TeleportLocation
         local cf = TeleportLocations[loc]
+        -- Re-scan if not found
+        if not cf then
+            scanTeleportLocations()
+            cf = TeleportLocations[loc]
+        end
         if cf and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             LocalPlayer.Character.HumanoidRootPart.CFrame = cf
+            print("[Synapse-Xenon] Teleported to " .. loc)
+        else
+            print("[Synapse-Xenon] Could not find location: " .. loc .. ". Try walking closer to it first.")
         end
     end)
 end)
