@@ -1295,37 +1295,43 @@ addButton(miscTab, "Teleport", "Smooth teleport - undetectable", function()
         end
         if cf and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = LocalPlayer.Character.HumanoidRootPart
-            local startPos = hrp.CFrame
-            local targetPos = cf
-            local distance = (targetPos.Position - startPos.Position).Magnitude
+            local targetPos = cf.Position
             
-            -- Smooth teleport: move in small increments to avoid detection
-            local steps = math.max(math.floor(distance / 50), 5)
-            local stepTime = 0.03
-            
-            -- Temporarily disable collision during teleport
-            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-            
-            for i = 1, steps do
-                if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
-                local alpha = i / steps
-                hrp.CFrame = startPos:Lerp(targetPos, alpha)
-                task.wait(stepTime)
-            end
-            
-            -- Final position
-            hrp.CFrame = targetPos
-            
-            -- Re-enable collision
-            task.wait(0.1)
-            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    part.CanCollide = true
-                end
+            -- Method: Walk-speed teleport (mimics fast walking)
+            -- Set very high walkspeed, point character toward target, wait, then reset
+            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                local originalSpeed = humanoid.WalkSpeed
+                local distance = (targetPos - hrp.Position).Magnitude
+                
+                -- Calculate time needed at boosted speed
+                local boostSpeed = math.min(distance / 0.5, 400) -- max 400 to stay reasonable
+                humanoid.WalkSpeed = boostSpeed
+                
+                -- Move toward target using MoveToFinished
+                humanoid:MoveTo(targetPos)
+                
+                -- Also do small CFrame increments as backup
+                task.spawn(function()
+                    local steps = math.max(math.floor(distance / 30), 10)
+                    for i = 1, steps do
+                        if not LocalPlayer.Character or not hrp.Parent then break end
+                        local alpha = i / steps
+                        local currentTarget = hrp.Position:Lerp(targetPos, alpha)
+                        hrp.CFrame = CFrame.new(currentTarget)
+                        humanoid:MoveTo(targetPos)
+                        task.wait(0.05)
+                    end
+                    -- Final snap
+                    if hrp and hrp.Parent then
+                        hrp.CFrame = CFrame.new(targetPos)
+                    end
+                    -- Reset speed
+                    task.wait(0.2)
+                    if humanoid and humanoid.Parent then
+                        humanoid.WalkSpeed = originalSpeed
+                    end
+                end)
             end
             
             print("[Synapse-Xenon] Teleported to " .. loc)
