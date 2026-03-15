@@ -1,6 +1,7 @@
 --[[
     Tha Bronx 3 - Synapse-Xenon Premium
     Luarmor Compatible Script
+    Compatible with: Xeno, Solara, Fluxus, Delta, and other low-level executors
     
     Structure:
     - Main Tab (Main, Money, Miscellaneous sub-tabs)
@@ -8,6 +9,129 @@
     - Visuals Tab (ESP)
     - Settings Tab (Config management)
 ]]
+
+------------------------------------------------------------
+-- Executor Compatibility Layer
+------------------------------------------------------------
+
+-- Safe require/loadstring wrapper
+local function safeLoadstring(url)
+    local success, result = pcall(function()
+        return game:HttpGet(url)
+    end)
+    if not success then
+        -- Fallback: try syn.request or http_request or request
+        local requestFunc = (syn and syn.request) or http_request or request or HttpService.RequestAsync
+        if requestFunc then
+            local ok, res = pcall(function()
+                if requestFunc == HttpService.RequestAsync then
+                    return HttpService:RequestAsync({ Url = url, Method = "GET" }).Body
+                else
+                    return requestFunc({ Url = url, Method = "GET" }).Body
+                end
+            end)
+            if ok then result = res end
+        end
+    end
+    if result then
+        return loadstring(result)
+    end
+    return nil
+end
+
+-- Polyfill: task library (some executors missing task.wait/task.spawn)
+if not task then
+    task = {
+        wait = function(t) return wait(t or 0) end,
+        spawn = function(f, ...) return coroutine.wrap(f)(...) end,
+        defer = function(f, ...) return coroutine.wrap(f)(...) end,
+        delay = function(t, f) return delay(t, f) end,
+    }
+end
+
+-- Polyfill: firetouchinterest (many low-level executors lack this)
+if not firetouchinterest then
+    firetouchinterest = function(part1, part2, toggle)
+        -- Fallback: use CFrame teleport method instead
+        if toggle == 0 then
+            local oldCF = part1.CFrame
+            part1.CFrame = part2.CFrame
+            task.wait()
+            part1.CFrame = oldCF
+        end
+    end
+end
+
+-- Polyfill: Drawing API (Xeno/Solara may not support Drawing.new)
+local DrawingSupported = pcall(function() local _ = Drawing.new("Circle") end)
+if not DrawingSupported then
+    -- Stub Drawing for executors without it; FOV circle just wont render
+    Drawing = Drawing or {}
+    Drawing.new = Drawing.new or function(type)
+        return setmetatable({}, {
+            __index = function(self, key)
+                return rawget(self, key)
+            end,
+            __newindex = function(self, key, value)
+                rawset(self, key, value)
+            end,
+        })
+    end
+end
+
+-- Polyfill: isfile / readfile / writefile / makefolder (for config saving)
+if not isfile then
+    isfile = function() return false end
+end
+if not readfile then
+    readfile = function() return "{}" end
+end
+if not writefile then
+    writefile = function() end
+end
+if not makefolder then
+    makefolder = function() end
+end
+if not isfolder then
+    isfolder = function() return false end
+end
+if not delfolder then
+    delfolder = function() end
+end
+if not delfile then
+    delfile = function() end
+end
+if not listfiles then
+    listfiles = function() return {} end
+end
+
+-- Polyfill: setclipboard
+if not setclipboard then
+    setclipboard = function() end
+end
+
+-- Polyfill: getgenv (some executors use this for globals)
+if not getgenv then
+    getgenv = function() return _G end
+end
+
+-- Polyfill: hookmetamethod / newcclosure
+if not hookmetamethod then
+    hookmetamethod = function() end
+end
+if not newcclosure then
+    newcclosure = function(f) return f end
+end
+
+-- Safe pcall wrapper for exploit functions
+local function safecall(func, ...)
+    local args = {...}
+    local ok, result = pcall(function()
+        return func(unpack(args))
+    end)
+    if ok then return result end
+    return nil
+end
 
 -- Services
 local Players = game:GetService("Players")
@@ -124,11 +248,33 @@ local Config = {
 }
 
 ------------------------------------------------------------
--- UI Library Loader
+-- UI Library Loader (with fallback for low-level executors)
 ------------------------------------------------------------
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local Fluent, SaveManager, Library
+
+local function loadUI()
+    local ok1, res1 = pcall(function()
+        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+    end)
+    if ok1 then Fluent = res1 end
+
+    local ok2, res2 = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+    end)
+    if ok2 then SaveManager = res2 end
+
+    local ok3, res3 = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+    end)
+    if ok3 then Library = res3 end
+end
+
+loadUI()
+
+if not Fluent then
+    warn("[Synapse-Xenon] Failed to load UI library. Make sure HTTP requests are enabled.")
+    return
+end
 
 ------------------------------------------------------------
 -- Window Creation
@@ -1058,9 +1204,13 @@ end
 -- SETTINGS TAB
 ------------------------------------------------------------
 do
-    SaveManager:SetLibrary(Fluent)
-    SaveManager:SetFolder("SynapseXenonThaBronx3")
-    SaveManager:BuildConfigSection(Tabs.Settings)
+    if SaveManager then
+        pcall(function()
+            SaveManager:SetLibrary(Fluent)
+            SaveManager:SetFolder("SynapseXenonThaBronx3")
+            SaveManager:BuildConfigSection(Tabs.Settings)
+        end)
+    end
 
     Tabs.Settings:AddSection("UI Settings")
 
@@ -1414,4 +1564,8 @@ Fluent:Notify({
 })
 
 -- Load saved config if available
-SaveManager:LoadAutoloadConfig()
+if SaveManager then
+    pcall(function()
+        SaveManager:LoadAutoloadConfig()
+    end)
+end
