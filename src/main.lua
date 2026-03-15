@@ -555,43 +555,81 @@ pcall(function() if gethui then SG.Parent=gethui(); return end end)
 if not SG.Parent then pcall(function() SG.Parent=game:GetService("CoreGui") end) end
 if not SG.Parent then SG.Parent=LP:WaitForChild("PlayerGui") end
 
-local BG=Color3.fromRGB(18,18,24)
-local SBC=Color3.fromRGB(22,22,30)
-local CARD=Color3.fromRGB(28,28,38)
-local ACC=Color3.fromRGB(0,110,255)
-local TXT=Color3.fromRGB(210,210,220)
-local DIM=Color3.fromRGB(120,120,135)
-local TOG_OFF=Color3.fromRGB(45,45,55)
-local INP=Color3.fromRGB(35,35,45)
-local GREEN=Color3.fromRGB(0,180,80)
-local RED=Color3.fromRGB(220,50,50)
+local BG=Color3.fromRGB(14,14,18)
+local SBC=Color3.fromRGB(18,18,24)
+local CARD=Color3.fromRGB(24,24,32)
+local CARD_HOVER=Color3.fromRGB(30,30,40)
+local ACC=Color3.fromRGB(0,120,255)
+local ACC2=Color3.fromRGB(80,160,255)
+local TXT=Color3.fromRGB(220,220,230)
+local DIM=Color3.fromRGB(100,100,115)
+local TOG_OFF=Color3.fromRGB(40,40,50)
+local INP=Color3.fromRGB(30,30,40)
+local GREEN=Color3.fromRGB(0,200,100)
+local RED=Color3.fromRGB(255,60,60)
+local GOLD=Color3.fromRGB(255,180,0)
+
+-- Shadow helper
+local function addShadow(parent, size)
+    local s=Instance.new("ImageLabel"); s.Name=rng(4); s.BackgroundTransparency=1
+    s.Image="rbxassetid://5554236805"; s.ImageColor3=Color3.fromRGB(0,0,0); s.ImageTransparency=0.6
+    s.Size=UDim2.new(1,size*2,1,size*2); s.Position=UDim2.new(0,-size,0,-size)
+    s.ScaleType=Enum.ScaleType.Slice; s.SliceCenter=Rect.new(23,23,277,277)
+    s.ZIndex=parent.ZIndex-1; s.Parent=parent
+    return s
+end
 
 -- Window
-local W=Instance.new("Frame"); W.Name=rng(8); W.Size=UDim2.new(0,660,0,440); W.Position=UDim2.new(0.5,-330,0.5,-220); W.BackgroundColor3=BG; W.BorderSizePixel=0; W.Active=true; W.Draggable=true; W.Parent=SG
-Instance.new("UICorner",W).CornerRadius=UDim.new(0,10)
-local stroke=Instance.new("UIStroke"); stroke.Color=Color3.fromRGB(40,40,55); stroke.Thickness=1; stroke.Parent=W
+local W=Instance.new("Frame"); W.Name=rng(8); W.Size=UDim2.new(0,680,0,460); W.Position=UDim2.new(0.5,-340,0.5,-230); W.BackgroundColor3=BG; W.BorderSizePixel=0; W.Active=true; W.Draggable=true; W.Parent=SG
+Instance.new("UICorner",W).CornerRadius=UDim.new(0,12)
+local wStroke=Instance.new("UIStroke"); wStroke.Color=Color3.fromRGB(35,35,48); wStroke.Thickness=1.5; wStroke.Parent=W
+pcall(function() addShadow(W,30) end)
 
--- Header
-local HD=Instance.new("Frame"); HD.Size=UDim2.new(1,0,0,45); HD.BackgroundColor3=SBC; HD.BorderSizePixel=0; HD.Parent=W
-Instance.new("UICorner",HD).CornerRadius=UDim.new(0,10)
-local Logo=Instance.new("TextLabel"); Logo.Size=UDim2.new(0,32,0,32); Logo.Position=UDim2.new(0,10,0,7); Logo.BackgroundColor3=ACC; Logo.TextColor3=Color3.new(1,1,1); Logo.Font=Enum.Font.GothamBold; Logo.TextSize=14; Logo.Text="SX"; Logo.Parent=HD
-Instance.new("UICorner",Logo).CornerRadius=UDim.new(0,8)
-local TL=Instance.new("TextLabel"); TL.Size=UDim2.new(0,140,0,16); TL.Position=UDim2.new(0,50,0,6); TL.BackgroundTransparency=1; TL.Text="Synapse-Xenon"; TL.TextColor3=ACC; TL.Font=Enum.Font.GothamBold; TL.TextSize=14; TL.TextXAlignment=Enum.TextXAlignment.Left; TL.Parent=HD
-local TL2=Instance.new("TextLabel"); TL2.Size=UDim2.new(0,140,0,14); TL2.Position=UDim2.new(0,50,0,24); TL2.BackgroundTransparency=1; TL2.Text="Premium User!"; TL2.TextColor3=DIM; TL2.Font=Enum.Font.Gotham; TL2.TextSize=10; TL2.TextXAlignment=Enum.TextXAlignment.Left; TL2.Parent=HD
+-- Header with gradient
+local HD=Instance.new("Frame"); HD.Size=UDim2.new(1,0,0,50); HD.BackgroundColor3=SBC; HD.BorderSizePixel=0; HD.Parent=W
+Instance.new("UICorner",HD).CornerRadius=UDim.new(0,12)
+local hdGrad=Instance.new("UIGradient"); hdGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(20,20,28)),ColorSequenceKeypoint.new(1,Color3.fromRGB(14,14,20))}); hdGrad.Parent=HD
+-- Accent line under header
+local accentLine=Instance.new("Frame"); accentLine.Size=UDim2.new(1,-20,0,2); accentLine.Position=UDim2.new(0,10,1,-1); accentLine.BackgroundColor3=ACC; accentLine.BackgroundTransparency=0.7; accentLine.BorderSizePixel=0; accentLine.Parent=HD
+local alGrad=Instance.new("UIGradient"); alGrad.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.9),NumberSequenceKeypoint.new(0.3,0),NumberSequenceKeypoint.new(0.7,0),NumberSequenceKeypoint.new(1,0.9)}); alGrad.Parent=accentLine
 
--- Minimize btn
-local MinBtn=Instance.new("TextButton"); MinBtn.Size=UDim2.new(0,24,0,24); MinBtn.Position=UDim2.new(1,-30,0,10); MinBtn.BackgroundTransparency=1; MinBtn.Text="-"; MinBtn.TextColor3=DIM; MinBtn.Font=Enum.Font.GothamBold; MinBtn.TextSize=18; MinBtn.Parent=HD
+-- Logo with glow
+local Logo=Instance.new("TextLabel"); Logo.Size=UDim2.new(0,36,0,36); Logo.Position=UDim2.new(0,10,0,7); Logo.BackgroundColor3=ACC; Logo.TextColor3=Color3.new(1,1,1); Logo.Font=Enum.Font.GothamBold; Logo.TextSize=15; Logo.Text="SX"; Logo.Parent=HD
+Instance.new("UICorner",Logo).CornerRadius=UDim.new(0,10)
+local logoGrad=Instance.new("UIGradient"); logoGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,ACC),ColorSequenceKeypoint.new(1,Color3.fromRGB(0,80,200))}); logoGrad.Rotation=135; logoGrad.Parent=Logo
+local logoStroke=Instance.new("UIStroke"); logoStroke.Color=ACC2; logoStroke.Thickness=1; logoStroke.Transparency=0.5; logoStroke.Parent=Logo
 
--- Sidebar
-local SBR=Instance.new("Frame"); SBR.Size=UDim2.new(0,130,1,-45); SBR.Position=UDim2.new(0,0,0,45); SBR.BackgroundColor3=SBC; SBR.BorderSizePixel=0; SBR.Parent=W
-local sepLine=Instance.new("Frame"); sepLine.Size=UDim2.new(0,1,1,0); sepLine.Position=UDim2.new(1,0,0,0); sepLine.BackgroundColor3=Color3.fromRGB(40,40,55); sepLine.BorderSizePixel=0; sepLine.Parent=SBR
+local TL=Instance.new("TextLabel"); TL.Size=UDim2.new(0,160,0,18); TL.Position=UDim2.new(0,54,0,7); TL.BackgroundTransparency=1; TL.Text="Synapse-Xenon"; TL.TextColor3=ACC; TL.Font=Enum.Font.GothamBold; TL.TextSize=15; TL.TextXAlignment=Enum.TextXAlignment.Left; TL.Parent=HD
+local TL2=Instance.new("TextLabel"); TL2.Size=UDim2.new(0,160,0,14); TL2.Position=UDim2.new(0,54,0,27); TL2.BackgroundTransparency=1; TL2.Text="Premium User!"; TL2.TextColor3=GOLD; TL2.Font=Enum.Font.GothamSemibold; TL2.TextSize=10; TL2.TextXAlignment=Enum.TextXAlignment.Left; TL2.Parent=HD
+
+-- Header buttons (minimize + close)
+local CloseBtn=Instance.new("TextButton"); CloseBtn.Size=UDim2.new(0,28,0,28); CloseBtn.Position=UDim2.new(1,-36,0,11); CloseBtn.BackgroundColor3=RED; CloseBtn.BackgroundTransparency=0.85; CloseBtn.Text="x"; CloseBtn.TextColor3=RED; CloseBtn.Font=Enum.Font.GothamBold; CloseBtn.TextSize=12; CloseBtn.BorderSizePixel=0; CloseBtn.Parent=HD
+Instance.new("UICorner",CloseBtn).CornerRadius=UDim.new(0,6)
+CloseBtn.MouseButton1Click:Connect(function() SG:Destroy() end)
+
+local MinBtn=Instance.new("TextButton"); MinBtn.Size=UDim2.new(0,28,0,28); MinBtn.Position=UDim2.new(1,-68,0,11); MinBtn.BackgroundColor3=GOLD; MinBtn.BackgroundTransparency=0.85; MinBtn.Text="-"; MinBtn.TextColor3=GOLD; MinBtn.Font=Enum.Font.GothamBold; MinBtn.TextSize=16; MinBtn.BorderSizePixel=0; MinBtn.Parent=HD
+Instance.new("UICorner",MinBtn).CornerRadius=UDim.new(0,6)
+
+-- Sidebar with subtle gradient
+local SBR=Instance.new("Frame"); SBR.Size=UDim2.new(0,140,1,-50); SBR.Position=UDim2.new(0,0,0,50); SBR.BackgroundColor3=SBC; SBR.BorderSizePixel=0; SBR.Parent=W
+local sbGrad=Instance.new("UIGradient"); sbGrad.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(20,20,28)),ColorSequenceKeypoint.new(1,Color3.fromRGB(16,16,22))}); sbGrad.Rotation=180; sbGrad.Parent=SBR
+-- Separator with glow
+local sepLine=Instance.new("Frame"); sepLine.Size=UDim2.new(0,1,1,0); sepLine.Position=UDim2.new(1,0,0,0); sepLine.BackgroundColor3=Color3.fromRGB(35,35,50); sepLine.BorderSizePixel=0; sepLine.Parent=SBR
+-- Active indicator (blue line on left of active tab)
+local activeIndicator=Instance.new("Frame"); activeIndicator.Size=UDim2.new(0,3,0,24); activeIndicator.Position=UDim2.new(0,0,0,13); activeIndicator.BackgroundColor3=ACC; activeIndicator.BorderSizePixel=0; activeIndicator.Parent=SBR
+Instance.new("UICorner",activeIndicator).CornerRadius=UDim.new(0,2)
 
 -- Content
-local CT=Instance.new("Frame"); CT.Size=UDim2.new(1,-130,1,-45); CT.Position=UDim2.new(0,130,0,45); CT.BackgroundTransparency=1; CT.ClipsDescendants=true; CT.Parent=W
+local CT=Instance.new("Frame"); CT.Size=UDim2.new(1,-140,1,-50); CT.Position=UDim2.new(0,140,0,50); CT.BackgroundTransparency=1; CT.ClipsDescendants=true; CT.Parent=W
 
--- Status bar at bottom
-local StatusBar=Instance.new("Frame"); StatusBar.Size=UDim2.new(1,0,0,20); StatusBar.Position=UDim2.new(0,0,1,-20); StatusBar.BackgroundColor3=Color3.fromRGB(15,15,20); StatusBar.BorderSizePixel=0; StatusBar.Parent=W
-local StatusTxt=Instance.new("TextLabel"); StatusTxt.Size=UDim2.new(1,-20,1,0); StatusTxt.Position=UDim2.new(0,10,0,0); StatusTxt.BackgroundTransparency=1; StatusTxt.Text="Synapse-Xenon v2.0 | Tha Bronx 3 | RightShift to toggle"; StatusTxt.TextColor3=DIM; StatusTxt.Font=Enum.Font.Gotham; StatusTxt.TextSize=10; StatusTxt.TextXAlignment=Enum.TextXAlignment.Left; StatusTxt.Parent=StatusBar
+-- Status bar
+local StatusBar=Instance.new("Frame"); StatusBar.Size=UDim2.new(1,0,0,22); StatusBar.Position=UDim2.new(0,0,1,-22); StatusBar.BackgroundColor3=Color3.fromRGB(12,12,16); StatusBar.BorderSizePixel=0; StatusBar.Parent=W
+Instance.new("UICorner",StatusBar).CornerRadius=UDim.new(0,12)
+local sbGrad2=Instance.new("UIGradient"); sbGrad2.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(12,12,16)),ColorSequenceKeypoint.new(1,Color3.fromRGB(16,16,22))}); sbGrad2.Parent=StatusBar
+local StatusTxt=Instance.new("TextLabel"); StatusTxt.Size=UDim2.new(1,-20,1,0); StatusTxt.Position=UDim2.new(0,10,0,0); StatusTxt.BackgroundTransparency=1; StatusTxt.Text="Synapse-Xenon v2.0  |  Tha Bronx 3  |  RightShift to toggle"; StatusTxt.TextColor3=DIM; StatusTxt.Font=Enum.Font.Gotham; StatusTxt.TextSize=9; StatusTxt.TextXAlignment=Enum.TextXAlignment.Left; StatusTxt.Parent=StatusBar
+-- Online indicator dot
+local onlineDot=Instance.new("Frame"); onlineDot.Size=UDim2.new(0,6,0,6); onlineDot.Position=UDim2.new(1,-16,0.5,-3); onlineDot.BackgroundColor3=GREEN; onlineDot.BorderSizePixel=0; onlineDot.Parent=StatusBar
+Instance.new("UICorner",onlineDot).CornerRadius=UDim.new(1,0)
 
 ------------------------------------------------------------
 -- UI HELPERS
@@ -603,12 +641,16 @@ local function no() ord=ord+1; return ord end
 local function ro() ord=0 end
 
 local function mkSideBtn(name,icon,idx)
-    local b=Instance.new("TextButton"); b.Size=UDim2.new(1,-12,0,34); b.Position=UDim2.new(0,6,0,8+(idx-1)*38); b.BackgroundColor3=CARD; b.BackgroundTransparency=1; b.BorderSizePixel=0; b.Text=""; b.AutoButtonColor=false; b.Parent=SBR
+    local b=Instance.new("TextButton"); b.Size=UDim2.new(1,-16,0,36); b.Position=UDim2.new(0,10,0,10+(idx-1)*40); b.BackgroundColor3=CARD; b.BackgroundTransparency=1; b.BorderSizePixel=0; b.Text=""; b.AutoButtonColor=false; b.Parent=SBR
     Instance.new("UICorner",b).CornerRadius=UDim.new(0,8)
-    local ic=Instance.new("TextLabel"); ic.Size=UDim2.new(0,22,0,22); ic.Position=UDim2.new(0,8,0.5,-11); ic.BackgroundColor3=ACC; ic.BackgroundTransparency=0.85; ic.TextColor3=ACC; ic.Font=Enum.Font.GothamBold; ic.TextSize=11; ic.Text=icon; ic.Parent=b
-    Instance.new("UICorner",ic).CornerRadius=UDim.new(0,6)
-    local lb=Instance.new("TextLabel"); lb.Size=UDim2.new(1,-40,1,0); lb.Position=UDim2.new(0,36,0,0); lb.BackgroundTransparency=1; lb.Text=name; lb.TextColor3=DIM; lb.Font=Enum.Font.GothamSemibold; lb.TextSize=11; lb.TextXAlignment=Enum.TextXAlignment.Left; lb.Parent=b
-    sidebtns[name]={btn=b,icon=ic,label=lb}
+    -- Icon with gradient background
+    local ic=Instance.new("TextLabel"); ic.Size=UDim2.new(0,24,0,24); ic.Position=UDim2.new(0,8,0.5,-12); ic.BackgroundColor3=ACC; ic.BackgroundTransparency=0.82; ic.TextColor3=ACC; ic.Font=Enum.Font.GothamBold; ic.TextSize=11; ic.Text=icon; ic.Parent=b
+    Instance.new("UICorner",ic).CornerRadius=UDim.new(0,7)
+    local lb=Instance.new("TextLabel"); lb.Size=UDim2.new(1,-42,1,0); lb.Position=UDim2.new(0,38,0,0); lb.BackgroundTransparency=1; lb.Text=name; lb.TextColor3=DIM; lb.Font=Enum.Font.GothamSemibold; lb.TextSize=11; lb.TextXAlignment=Enum.TextXAlignment.Left; lb.Parent=b
+    -- Hover effect
+    b.MouseEnter:Connect(function() if b.BackgroundTransparency>0.5 then TS:Create(b,TweenInfo.new(0.15),{BackgroundTransparency=0.7,BackgroundColor3=CARD_HOVER}):Play() end end)
+    b.MouseLeave:Connect(function() if b.BackgroundTransparency>0.5 then TS:Create(b,TweenInfo.new(0.15),{BackgroundTransparency=1}):Play() end end)
+    sidebtns[name]={btn=b,icon=ic,label=lb,yPos=10+(idx-1)*40}
     return b
 end
 
@@ -617,12 +659,18 @@ local function mkPage()
 end
 
 local function mkSubBar(parent,names)
-    local bar=Instance.new("Frame"); bar.Size=UDim2.new(1,0,0,30); bar.BackgroundTransparency=1; bar.Parent=parent
+    local bar=Instance.new("Frame"); bar.Size=UDim2.new(1,0,0,32); bar.BackgroundColor3=Color3.fromRGB(16,16,22); bar.BackgroundTransparency=0.5; bar.BorderSizePixel=0; bar.Parent=parent
     local btns={}
+    local xPos=8
     for i,n in ipairs(names) do
-        local b=Instance.new("TextButton"); b.Size=UDim2.new(0,#n*8+20,0,24); b.Position=UDim2.new(0,5+(i-1)*95,0,3); b.BackgroundColor3=ACC; b.BackgroundTransparency=1; b.Text=n; b.TextColor3=DIM; b.Font=Enum.Font.GothamBold; b.TextSize=11; b.BorderSizePixel=0; b.AutoButtonColor=false; b.Parent=bar
+        local bw=math.max(#n*7+24,70)
+        local b=Instance.new("TextButton"); b.Size=UDim2.new(0,bw,0,26); b.Position=UDim2.new(0,xPos,0,3); b.BackgroundColor3=ACC; b.BackgroundTransparency=1; b.Text=n; b.TextColor3=DIM; b.Font=Enum.Font.GothamBold; b.TextSize=11; b.BorderSizePixel=0; b.AutoButtonColor=false; b.Parent=bar
         Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
+        -- Hover
+        b.MouseEnter:Connect(function() if b.BackgroundTransparency>0.5 then TS:Create(b,TweenInfo.new(0.1),{TextColor3=ACC}):Play() end end)
+        b.MouseLeave:Connect(function() if b.BackgroundTransparency>0.5 then TS:Create(b,TweenInfo.new(0.1),{TextColor3=DIM}):Play() end end)
         btns[n]=b
+        xPos=xPos+bw+6
     end
     return bar,btns
 end
@@ -636,11 +684,15 @@ local function mkTwoCol(parent,yOff)
     return wrap,L,R
 end
 
--- Section header
+-- Section header with gradient accent
 local function sec(p,txt,o)
-    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,-4,0,20); l.BackgroundColor3=Color3.fromRGB(24,24,32); l.Text="  "..txt; l.TextColor3=ACC; l.Font=Enum.Font.GothamBold; l.TextSize=10; l.TextXAlignment=Enum.TextXAlignment.Left; l.LayoutOrder=o; l.BorderSizePixel=0; l.Parent=p
-    Instance.new("UICorner",l).CornerRadius=UDim.new(0,4)
-    local arrow=Instance.new("TextLabel"); arrow.Size=UDim2.new(0,14,0,14); arrow.Position=UDim2.new(1,-18,0.5,-7); arrow.BackgroundTransparency=1; arrow.Text="v"; arrow.TextColor3=DIM; arrow.Font=Enum.Font.GothamBold; arrow.TextSize=10; arrow.Parent=l
+    local l=Instance.new("Frame"); l.Size=UDim2.new(1,-4,0,22); l.BackgroundColor3=Color3.fromRGB(20,20,28); l.LayoutOrder=o; l.BorderSizePixel=0; l.Parent=p
+    Instance.new("UICorner",l).CornerRadius=UDim.new(0,5)
+    -- Left accent bar
+    local bar=Instance.new("Frame"); bar.Size=UDim2.new(0,3,0,14); bar.Position=UDim2.new(0,6,0.5,-7); bar.BackgroundColor3=ACC; bar.BorderSizePixel=0; bar.Parent=l
+    Instance.new("UICorner",bar).CornerRadius=UDim.new(0,2)
+    local txt_=Instance.new("TextLabel"); txt_.Size=UDim2.new(1,-30,1,0); txt_.Position=UDim2.new(0,14,0,0); txt_.BackgroundTransparency=1; txt_.Text=txt; txt_.TextColor3=ACC; txt_.Font=Enum.Font.GothamBold; txt_.TextSize=10; txt_.TextXAlignment=Enum.TextXAlignment.Left; txt_.Parent=l
+    local arrow=Instance.new("TextLabel"); arrow.Size=UDim2.new(0,14,0,14); arrow.Position=UDim2.new(1,-18,0.5,-7); arrow.BackgroundTransparency=1; arrow.Text="v"; arrow.TextColor3=DIM; arrow.Font=Enum.Font.GothamBold; arrow.TextSize=9; arrow.Parent=l
 end
 
 -- Toggle
@@ -690,8 +742,12 @@ local function btn(p,txt,desc,cb,o)
     if desc~="" then
         local dl=Instance.new("TextLabel"); dl.Size=UDim2.new(1,-12,0,12); dl.Position=UDim2.new(0,8,0,18); dl.BackgroundTransparency=1; dl.Text=desc; dl.TextColor3=Color3.fromRGB(255,165,0); dl.Font=Enum.Font.Gotham; dl.TextSize=9; dl.TextXAlignment=Enum.TextXAlignment.Left; dl.Parent=f
     end
+    -- Hover effect
+    f.MouseEnter:Connect(function() TS:Create(f,TweenInfo.new(0.1),{BackgroundColor3=CARD_HOVER}):Play() end)
+    f.MouseLeave:Connect(function() TS:Create(f,TweenInfo.new(0.1),{BackgroundColor3=CARD}):Play() end)
     f.MouseButton1Click:Connect(function()
-        f.BackgroundColor3=ACC; task.delay(0.1,function() f.BackgroundColor3=CARD end)
+        TS:Create(f,TweenInfo.new(0.08),{BackgroundColor3=ACC}):Play()
+        task.delay(0.12,function() TS:Create(f,TweenInfo.new(0.15),{BackgroundColor3=CARD}):Play() end)
         if cb then cb() end
     end)
 end
@@ -733,8 +789,17 @@ for i,n in ipairs(sideNames) do pages[n]=mkPage(); mkSideBtn(n,sideIcons[i],i) e
 local function switchSide(name)
     for n,pg in pairs(pages) do pg.Visible=(n==name) end
     for n,d in pairs(sidebtns) do
-        if n==name then d.btn.BackgroundTransparency=0; d.btn.BackgroundColor3=CARD; d.icon.TextColor3=ACC; d.icon.BackgroundTransparency=0.8; d.label.TextColor3=TXT
-        else d.btn.BackgroundTransparency=1; d.icon.TextColor3=DIM; d.icon.BackgroundTransparency=0.9; d.label.TextColor3=DIM end
+        if n==name then
+            TS:Create(d.btn,TweenInfo.new(0.2),{BackgroundTransparency=0,BackgroundColor3=CARD}):Play()
+            TS:Create(d.icon,TweenInfo.new(0.2),{TextColor3=ACC,BackgroundTransparency=0.75}):Play()
+            TS:Create(d.label,TweenInfo.new(0.2),{TextColor3=TXT}):Play()
+            -- Animate indicator
+            TS:Create(activeIndicator,TweenInfo.new(0.2,Enum.EasingStyle.Quart),{Position=UDim2.new(0,0,0,d.yPos+6)}):Play()
+        else
+            TS:Create(d.btn,TweenInfo.new(0.2),{BackgroundTransparency=1}):Play()
+            TS:Create(d.icon,TweenInfo.new(0.2),{TextColor3=DIM,BackgroundTransparency=0.92}):Play()
+            TS:Create(d.label,TweenInfo.new(0.2),{TextColor3=DIM}):Play()
+        end
     end
 end
 for n,d in pairs(sidebtns) do d.btn.MouseButton1Click:Connect(function() switchSide(n) end) end
@@ -749,7 +814,7 @@ local moW,moL,moR=mkTwoCol(tbP,32)
 local miW,miL,miR=mkTwoCol(tbP,32)
 local subMap={Main=mW,Money=moW,Miscellaneous=miW}
 
-local function switchSub(n) for k,w in pairs(subMap) do w.Visible=(k==n) end; for k,b in pairs(subBtns) do if k==n then b.BackgroundTransparency=0; b.BackgroundColor3=ACC; b.TextColor3=Color3.new(1,1,1) else b.BackgroundTransparency=1; b.TextColor3=DIM end end end
+local function switchSub(n) for k,w in pairs(subMap) do w.Visible=(k==n) end; for k,b in pairs(subBtns) do if k==n then TS:Create(b,TweenInfo.new(0.15),{BackgroundTransparency=0,BackgroundColor3=ACC,TextColor3=Color3.new(1,1,1)}):Play() else TS:Create(b,TweenInfo.new(0.15),{BackgroundTransparency=1,TextColor3=DIM}):Play() end end end
 for n,b in pairs(subBtns) do b.MouseButton1Click:Connect(function() switchSub(n) end) end
 switchSub("Main")
 
