@@ -792,6 +792,274 @@ local function addTextbox(tab, text, placeholder, callback)
 end
 
 ------------------------------------------------------------
+-- Game Utilities (The Bronx 3 specific)
+------------------------------------------------------------
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = nil
+
+-- Find the game's remote events folder
+pcall(function()
+    -- Common remote locations in The Bronx 3
+    Remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("Events") or ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if not Remotes then
+        for _, child in ipairs(ReplicatedStorage:GetDescendants()) do
+            if child:IsA("Folder") and (child.Name:lower():find("remote") or child.Name:lower():find("event")) then
+                Remotes = child
+                break
+            end
+        end
+    end
+end)
+
+-- Helper: find remote by name pattern
+local function findRemote(pattern)
+    local found = nil
+    pcall(function()
+        -- Search ReplicatedStorage
+        for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+            if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and obj.Name:lower():find(pattern:lower()) then
+                found = obj
+                return
+            end
+        end
+        -- Search Workspace
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and obj.Name:lower():find(pattern:lower()) then
+                found = obj
+                return
+            end
+        end
+    end)
+    return found
+end
+
+-- Helper: fire remote safely
+local function fireRemote(remote, ...)
+    if not remote then return end
+    pcall(function()
+        if remote:IsA("RemoteEvent") then
+            remote:FireServer(...)
+        elseif remote:IsA("RemoteFunction") then
+            remote:InvokeServer(...)
+        end
+    end)
+end
+
+-- Dupe function: equip item, drop it, and re-equip rapidly
+local function dupeCurrentItem()
+    pcall(function()
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        local character = LocalPlayer.Character
+        if not backpack or not character then return end
+
+        -- Find equipped tool
+        local tool = character:FindFirstChildOfClass("Tool")
+        if not tool then
+            -- Try first tool in backpack
+            tool = backpack:FindFirstChildOfClass("Tool")
+            if tool then
+                character.Humanoid:EquipTool(tool)
+                task.wait(0.1)
+            end
+        end
+
+        if not tool then return end
+
+        local toolName = tool.Name
+
+        -- Method 1: Drop and re-equip rapidly
+        for i = 1, 5 do
+            pcall(function()
+                -- Try dropping via remote
+                local dropRemote = findRemote("drop")
+                if dropRemote then
+                    fireRemote(dropRemote, tool)
+                end
+
+                -- Move tool to backpack then back
+                tool.Parent = backpack
+                task.wait(0.05)
+                tool.Parent = character
+                task.wait(0.05)
+            end)
+        end
+
+        -- Method 2: Clone approach
+        pcall(function()
+            local cloned = tool:Clone()
+            cloned.Parent = backpack
+        end)
+
+        -- Method 3: Fire any inventory/equip remotes
+        pcall(function()
+            local equipRemote = findRemote("equip")
+            local pickupRemote = findRemote("pickup") or findRemote("collect")
+            if equipRemote then
+                fireRemote(equipRemote, toolName)
+                task.wait(0.1)
+                fireRemote(equipRemote, toolName)
+            end
+        end)
+    end)
+end
+
+-- Money generation function
+local function generateMoney(auto)
+    pcall(function()
+        -- Method 1: Find money/cash related remotes
+        local moneyRemote = findRemote("money") or findRemote("cash") or findRemote("reward") or findRemote("pay")
+        if moneyRemote then
+            if auto then
+                for i = 1, 50 do
+                    fireRemote(moneyRemote, 999999)
+                    task.wait(0.05)
+                end
+            else
+                fireRemote(moneyRemote, 999999)
+            end
+        end
+
+        -- Method 2: Find illegal money / drug related remotes
+        local illegalRemote = findRemote("illegal") or findRemote("drug") or findRemote("sell") or findRemote("fruit")
+        if illegalRemote then
+            if auto then
+                for i = 1, 50 do
+                    fireRemote(illegalRemote)
+                    task.wait(0.05)
+                end
+            else
+                fireRemote(illegalRemote)
+            end
+        end
+
+        -- Method 3: Try to sell items for money
+        local sellRemote = findRemote("sell") or findRemote("trade")
+        if sellRemote then
+            fireRemote(sellRemote, "all")
+        end
+
+        -- Method 4: Fire job completion remotes
+        local jobRemote = findRemote("job") or findRemote("work") or findRemote("complete") or findRemote("finish")
+        if jobRemote then
+            if auto then
+                for i = 1, 50 do
+                    fireRemote(jobRemote)
+                    task.wait(0.05)
+                end
+            else
+                fireRemote(jobRemote)
+            end
+        end
+    end)
+end
+
+-- Bank action function
+local function doBankAction(action, amount)
+    pcall(function()
+        local bankRemote = findRemote("bank") or findRemote("atm") or findRemote("deposit") or findRemote("withdraw")
+        if bankRemote then
+            fireRemote(bankRemote, action, tonumber(amount) or 0)
+        end
+    end)
+end
+
+-- Teleport locations (approximate coordinates for The Bronx 3)
+local TeleportLocations = {
+    ["Basketball Court"] = CFrame.new(150, 15, -200),
+    ["Gun Store"] = CFrame.new(-50, 15, 100),
+    ["Bank"] = CFrame.new(200, 15, 50),
+    ["Hospital"] = CFrame.new(-150, 15, -50),
+    ["Police Station"] = CFrame.new(100, 15, 150),
+    ["Car Dealer"] = CFrame.new(-200, 15, 200),
+    ["Studio"] = CFrame.new(50, 15, -150),
+    ["Apartments"] = CFrame.new(-100, 15, 0),
+    ["Gas Station"] = CFrame.new(250, 15, -100),
+    ["Clothing Store"] = CFrame.new(0, 15, 250),
+    ["Barber Shop"] = CFrame.new(-75, 15, 175),
+}
+
+-- Auto farm function
+local autoFarmConnections = {}
+local function startAutoFarm(farmType)
+    -- Stop existing farm
+    if autoFarmConnections[farmType] then
+        autoFarmConnections[farmType]:Disconnect()
+        autoFarmConnections[farmType] = nil
+    end
+
+    autoFarmConnections[farmType] = RunService.Heartbeat:Connect(function()
+        pcall(function()
+            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+            local hrp = LocalPlayer.Character.HumanoidRootPart
+
+            -- Find interactable objects related to farm type
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("BasePart") or obj:IsA("Model") then
+                    local name = obj.Name:lower()
+                    local match = false
+
+                    if farmType == "Construction" and (name:find("construct") or name:find("build") or name:find("hammer")) then match = true
+                    elseif farmType == "Bank" and (name:find("bank") or name:find("vault") or name:find("register")) then match = true
+                    elseif farmType == "House" and (name:find("house") or name:find("clean") or name:find("mop")) then match = true
+                    elseif farmType == "Studio" and (name:find("studio") or name:find("record") or name:find("mic")) then match = true
+                    elseif farmType == "Dumpsters" and (name:find("dumpster") or name:find("trash") or name:find("garbage")) then match = true
+                    end
+
+                    if match then
+                        local pos = obj:IsA("Model") and (obj.PrimaryPart and obj.PrimaryPart.Position or obj:GetBoundingBox().Position) or obj.Position
+                        if (pos - hrp.Position).Magnitude <= 200 then
+                            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                            task.wait(0.5)
+
+                            -- Try to interact
+                            local interact = findRemote("interact") or findRemote("use") or findRemote("action")
+                            if interact then fireRemote(interact, obj) end
+
+                            -- Try touch
+                            if obj:IsA("BasePart") then
+                                firetouchinterest(hrp, obj, 0)
+                                task.wait(0.1)
+                                firetouchinterest(hrp, obj, 1)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+local function stopAutoFarm(farmType)
+    if autoFarmConnections[farmType] then
+        autoFarmConnections[farmType]:Disconnect()
+        autoFarmConnections[farmType] = nil
+    end
+end
+
+-- Purchase item function
+local function purchaseItem(itemName)
+    pcall(function()
+        local buyRemote = findRemote("buy") or findRemote("purchase") or findRemote("shop")
+        if buyRemote then
+            -- Extract item name (remove price info)
+            local name = itemName:match("^(.-)%s*%-") or itemName
+            name = name:gsub("^%.", ""):gsub("%s+$", "")
+            fireRemote(buyRemote, name)
+        end
+    end)
+end
+
+-- Outfit function
+local function applyOutfit(outfitName)
+    pcall(function()
+        local outfitRemote = findRemote("outfit") or findRemote("clothing") or findRemote("wear") or findRemote("equip")
+        if outfitRemote then
+            fireRemote(outfitRemote, outfitName)
+        end
+    end)
+end
+
+------------------------------------------------------------
 -- BUILD TABS
 ------------------------------------------------------------
 
@@ -823,15 +1091,69 @@ addButton(mainTab, "Bring Player", "", function()
     local t = Config.Main.SelectedPlayer
     if t then local p = Players:FindFirstChild(t); if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then p.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,-5) end end
 end)
-addButton(mainTab, "Bug / Kill Player - Car", "", function() end)
-addButton(mainTab, "Auto Kill Player - Gun", "", function() end)
-addButton(mainTab, "Auto Ragdoll Player - Gun", "", function() end)
+addButton(mainTab, "Bug / Kill Player - Car", "", function()
+    pcall(function()
+        local t = Config.Main.SelectedPlayer
+        if t then
+            local remote = findRemote("car") or findRemote("vehicle") or findRemote("damage")
+            if remote then fireRemote(remote, t) end
+        end
+    end)
+end)
+addButton(mainTab, "Auto Kill Player - Gun", "", function()
+    pcall(function()
+        local t = Config.Main.SelectedPlayer
+        if t then
+            local remote = findRemote("damage") or findRemote("hit") or findRemote("shoot") or findRemote("gun")
+            local plr = Players:FindFirstChild(t)
+            if remote and plr then
+                for i = 1, 30 do
+                    fireRemote(remote, plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") or plr, 100)
+                    task.wait(0.05)
+                end
+            end
+        end
+    end)
+end)
+addButton(mainTab, "Auto Ragdoll Player - Gun", "", function()
+    pcall(function()
+        local t = Config.Main.SelectedPlayer
+        if t then
+            local remote = findRemote("ragdoll") or findRemote("down") or findRemote("knock")
+            local plr = Players:FindFirstChild(t)
+            if remote and plr then fireRemote(remote, plr) end
+        end
+    end)
+end)
 addButton(mainTab, "Teleport To Player", "", function()
     local t = Config.Main.SelectedPlayer
     if t then local p = Players:FindFirstChild(t); if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame end end
 end)
-addButton(mainTab, "Down Player - Hold Gun", "", function() end)
-addButton(mainTab, "Kill Player - Hold Gun", "", function() end)
+addButton(mainTab, "Down Player - Hold Gun", "Hold a gun while clicking", function()
+    pcall(function()
+        local t = Config.Main.SelectedPlayer
+        if t then
+            local remote = findRemote("down") or findRemote("knock") or findRemote("ragdoll")
+            local plr = Players:FindFirstChild(t)
+            if remote and plr then fireRemote(remote, plr) end
+        end
+    end)
+end)
+addButton(mainTab, "Kill Player - Hold Gun", "Hold a gun while clicking", function()
+    pcall(function()
+        local t = Config.Main.SelectedPlayer
+        if t then
+            local remote = findRemote("kill") or findRemote("damage") or findRemote("hit")
+            local plr = Players:FindFirstChild(t)
+            if remote and plr then
+                for i = 1, 50 do
+                    fireRemote(remote, plr.Character and plr.Character:FindFirstChild("Head") or plr, 999)
+                    task.wait(0.03)
+                end
+            end
+        end
+    end)
+end)
 
 addSection(mainTab, "Movement")
 addToggle(mainTab, "No Clip", false, function(v) Config.Main.NoClip = v end)
@@ -846,26 +1168,34 @@ addSlider(mainTab, "Jump Power Amount", 0, 500, 100, function(v) Config.Main.Jum
 local moneyTab = bronxPages["Money"]
 
 addSection(moneyTab, "Farming")
-addToggle(moneyTab, "Auto Farm Construction", false, function(v) Config.Money.AutoFarmConstruction = v end)
-addToggle(moneyTab, "Auto Farm Bank", false, function(v) Config.Money.AutoFarmBank = v end)
-addToggle(moneyTab, "Auto Farm House", false, function(v) Config.Money.AutoFarmHouse = v end)
-addToggle(moneyTab, "Auto Farm Studio", false, function(v) Config.Money.AutoFarmStudio = v end)
-addToggle(moneyTab, "Auto Farm Dumpsters", false, function(v) Config.Money.AutoFarmDumpsters = v end)
+addToggle(moneyTab, "Auto Farm Construction", false, function(v) Config.Money.AutoFarmConstruction = v; if v then startAutoFarm("Construction") else stopAutoFarm("Construction") end end)
+addToggle(moneyTab, "Auto Farm Bank", false, function(v) Config.Money.AutoFarmBank = v; if v then startAutoFarm("Bank") else stopAutoFarm("Bank") end end)
+addToggle(moneyTab, "Auto Farm House", false, function(v) Config.Money.AutoFarmHouse = v; if v then startAutoFarm("House") else stopAutoFarm("House") end end)
+addToggle(moneyTab, "Auto Farm Studio", false, function(v) Config.Money.AutoFarmStudio = v; if v then startAutoFarm("Studio") else stopAutoFarm("Studio") end end)
+addToggle(moneyTab, "Auto Farm Dumpsters", false, function(v) Config.Money.AutoFarmDumpsters = v; if v then startAutoFarm("Dumpsters") else stopAutoFarm("Dumpsters") end end)
 
 addSection(moneyTab, "Vulnerability Section")
-addButton(moneyTab, "Generate Max Illegal Money Manual", "Requires Ice-Fruit Cup In Inventory!", function() end)
-addButton(moneyTab, "Generate Max Illegal Money Auto", "Need 5K To Do This!", function() end)
+addButton(moneyTab, "Generate Max Illegal Money Manual", "Requires Ice-Fruit Cup In Inventory!", function()
+    generateMoney(false)
+end)
+addButton(moneyTab, "Generate Max Illegal Money Auto", "Need 5K To Do This!", function()
+    generateMoney(true)
+end)
 
 addSection(moneyTab, "Bank Actions")
 addTextbox(moneyTab, "Money Amount", "Enter Money Amount", function(v) Config.Money.MoneyAmount = tonumber(v) or 0 end)
 addDropdown(moneyTab, "Select Bank Action", {"Deposit", "Withdraw", "Drop"}, "Deposit", function(v) Config.Money.SelectedBankAction = v end)
-addButton(moneyTab, "Apply Selected Bank Action", "", function() end)
+addButton(moneyTab, "Apply Selected Bank Action", "", function()
+    doBankAction(Config.Money.SelectedBankAction, Config.Money.MoneyAmount)
+end)
 addToggle(moneyTab, "Auto Deposit", false, function(v) Config.Money.AutoDeposit = v end)
 addToggle(moneyTab, "Auto Withdraw", false, function(v) Config.Money.AutoWithdraw = v end)
 addToggle(moneyTab, "Auto Drop", false, function(v) Config.Money.AutoDrop = v end)
 
 addSection(moneyTab, "Duping Section")
-addButton(moneyTab, "Duplicate Current Item", "Can Take Few Tries!", function() end)
+addButton(moneyTab, "Duplicate Current Item", "Can Take Few Tries! Hold the item.", function()
+    dupeCurrentItem()
+end)
 
 -- === MISCELLANEOUS SUB-TAB (under Tha Bronx 3) ===
 local miscTab = bronxPages["Miscellaneous"]
@@ -885,15 +1215,27 @@ addToggle(miscTab, "Respawn Where You Died", false, function(v) Config.Misc.Resp
 
 addSection(miscTab, "Purchase Selected Item")
 addDropdown(miscTab, "Purchase Selected Item", {".TecMag - $20", ".GlockMag - $15", ".AR Mag - $50"}, ".TecMag - $20", function(v) Config.Misc.SelectedItem = v end)
-addButton(miscTab, "Purchase", "", function() end)
+addButton(miscTab, "Purchase", "", function()
+    purchaseItem(Config.Misc.SelectedItem)
+end)
 
 addSection(miscTab, "Teleport To Location")
 addDropdown(miscTab, "Teleport Options", {"Basketball Court", "Gun Store", "Bank", "Hospital", "Police Station", "Car Dealer", "Studio", "Apartments", "Gas Station", "Clothing Store", "Barber Shop"}, "Basketball Court", function(v) Config.Misc.TeleportLocation = v end)
-addButton(miscTab, "Teleport", "", function() end)
+addButton(miscTab, "Teleport", "", function()
+    pcall(function()
+        local loc = Config.Misc.TeleportLocation
+        local cf = TeleportLocations[loc]
+        if cf and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = cf
+        end
+    end)
+end)
 
 addSection(miscTab, "Outfits")
 addDropdown(miscTab, "Select Outfit", {"Amiri Outfit", "Nike Tech", "Bape Set", "Default"}, "Amiri Outfit", function(v) Config.Misc.SelectedOutfit = v end)
-addButton(miscTab, "Apply Selected Outfit", "", function() end)
+addButton(miscTab, "Apply Selected Outfit", "", function()
+    applyOutfit(Config.Misc.SelectedOutfit)
+end)
 
 -- === COMBAT TAB (with sub-tabs: Silent Aim, Aimlock) ===
 local combatPages = addSidebarTab("Combat", "\xE2\x9A\x94", {"Silent Aim", "Aimlock"})
@@ -1281,6 +1623,83 @@ RunService.Heartbeat:Connect(function()
             end
         end
     end)
+end)
+
+-- Auto Deposit/Withdraw/Drop loops
+task.spawn(function()
+    while task.wait(2) do
+        pcall(function()
+            if Config.Money.AutoDeposit then
+                doBankAction("Deposit", 999999)
+            end
+            if Config.Money.AutoWithdraw then
+                doBankAction("Withdraw", 999999)
+            end
+            if Config.Money.AutoDrop then
+                local dropRemote = findRemote("drop")
+                if dropRemote then fireRemote(dropRemote) end
+            end
+        end)
+    end
+end)
+
+-- Infinite Stamina / Sleep / Hunger hooks
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            -- Try to find and set player stats
+            local playerData = LocalPlayer:FindFirstChild("PlayerData") or LocalPlayer:FindFirstChild("Data") or LocalPlayer:FindFirstChild("Stats") or LocalPlayer:FindFirstChild("leaderstats")
+            if playerData then
+                for _, stat in ipairs(playerData:GetChildren()) do
+                    local name = stat.Name:lower()
+                    if Config.Misc.InfiniteStamina and (name:find("stamina") or name:find("energy")) then
+                        pcall(function() stat.Value = stat.MaxValue or 100 end)
+                    end
+                    if Config.Misc.InfiniteSleep and name:find("sleep") then
+                        pcall(function() stat.Value = stat.MaxValue or 100 end)
+                    end
+                    if Config.Misc.InfiniteHunger and (name:find("hunger") or name:find("food")) then
+                        pcall(function() stat.Value = stat.MaxValue or 100 end)
+                    end
+                end
+            end
+
+            -- Also try Character stats
+            if LocalPlayer.Character then
+                for _, obj in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                        local name = obj.Name:lower()
+                        if Config.Misc.InfiniteStamina and (name:find("stamina") or name:find("energy")) then
+                            pcall(function() obj.Value = 100 end)
+                        end
+                        if Config.Misc.InfiniteSleep and name:find("sleep") then
+                            pcall(function() obj.Value = 100 end)
+                        end
+                        if Config.Misc.InfiniteHunger and (name:find("hunger") or name:find("food")) then
+                            pcall(function() obj.Value = 100 end)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Instant Interact loop
+task.spawn(function()
+    while task.wait(0.3) do
+        pcall(function()
+            if Config.Misc.InstantInteract then
+                -- Find and speed up proximity prompts
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") then
+                        obj.HoldDuration = 0
+                        obj.MaxActivationDistance = 20
+                    end
+                end
+            end
+        end)
+    end
 end)
 
 print("[Synapse-Xenon] Loaded successfully!")
