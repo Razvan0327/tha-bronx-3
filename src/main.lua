@@ -116,10 +116,182 @@ local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LP = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local Mouse = LP:GetMouse()
+
+------------------------------------------------------------
+-- Remote Finder Helper
+------------------------------------------------------------
+local function findRemote(name, searchIn)
+    local root = searchIn or ReplicatedStorage
+    for _, obj in ipairs(root:GetDescendants()) do
+        if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) then
+            if obj.Name:lower():find(name:lower()) then
+                return obj
+            end
+        end
+    end
+    -- Also search in other common locations
+    for _, loc in ipairs({ReplicatedStorage, game:GetService("Players").LocalPlayer.PlayerScripts}) do
+        pcall(function()
+            for _, obj in ipairs(loc:GetDescendants()) do
+                if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) then
+                    if obj.Name:lower():find(name:lower()) then
+                        return obj
+                    end
+                end
+            end
+        end)
+    end
+    return nil
+end
+
+local function findAllRemotes()
+    local remotes = {}
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            remotes[obj.Name] = obj
+        end
+    end
+    return remotes
+end
+
+-- Fire a remote safely
+local function fireRemote(remote, ...)
+    if not remote then return end
+    pcall(function()
+        if remote:IsA("RemoteEvent") then
+            remote:FireServer(...)
+        elseif remote:IsA("RemoteFunction") then
+            remote:InvokeServer(...)
+        end
+    end)
+end
+
+------------------------------------------------------------
+-- Game-Specific Functions (The Bronx 3)
+------------------------------------------------------------
+
+-- Duplicate current item: rapidly drop and pick up, or fire inventory remotes
+local function duplicateItem()
+    task.spawn(function()
+        -- Method 1: Try firing common dupe remotes
+        local remotes = findAllRemotes()
+        for name, remote in pairs(remotes) do
+            local n = name:lower()
+            if n:find("drop") or n:find("equip") or n:find("inventory") or n:find("item") then
+                -- Try rapid fire for dupe
+                for i = 1, 5 do
+                    pcall(function() remote:FireServer() end)
+                    task.wait(0.05)
+                end
+            end
+        end
+
+        -- Method 2: Backpack item manipulation
+        pcall(function()
+            local backpack = LP:FindFirstChild("Backpack")
+            local char = LP.Character
+            if backpack and char then
+                local hum = char:FindFirstChild("Humanoid")
+                if hum then
+                    -- Get currently equipped tool
+                    for _, tool in ipairs(char:GetChildren()) do
+                        if tool:IsA("Tool") then
+                            -- Clone attempt: unequip and re-equip rapidly
+                            local toolName = tool.Name
+                            hum:UnequipTools()
+                            task.wait(0.1)
+                            -- Fire any drop remote
+                            for rName, remote in pairs(remotes) do
+                                if rName:lower():find("drop") then
+                                    pcall(function() remote:FireServer(toolName) end)
+                                    pcall(function() remote:FireServer(tool) end)
+                                end
+                            end
+                            task.wait(0.1)
+                            -- Re-equip
+                            pcall(function()
+                                local t = backpack:FindFirstChild(toolName)
+                                if t then hum:EquipTool(t) end
+                            end)
+                            break
+                        end
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+-- Generate illegal money
+local function generateIllegalMoney(auto)
+    task.spawn(function()
+        local remotes = findAllRemotes()
+
+        -- Try common money/cash remotes
+        for name, remote in pairs(remotes) do
+            local n = name:lower()
+            if n:find("money") or n:find("cash") or n:find("sell") or n:find("illegal") or
+               n:find("drug") or n:find("pay") or n:find("reward") or n:find("income") then
+                pcall(function()
+                    remote:FireServer()
+                    remote:FireServer(999999)
+                    remote:FireServer("sell")
+                    remote:FireServer("max")
+                end)
+            end
+        end
+
+        -- Try to find and fire sell/craft remotes for illegal items
+        for name, remote in pairs(remotes) do
+            local n = name:lower()
+            if n:find("craft") or n:find("cook") or n:find("produce") or n:find("create") then
+                if auto then
+                    for i = 1, 20 do
+                        pcall(function() remote:FireServer() end)
+                        task.wait(0.1)
+                    end
+                else
+                    pcall(function() remote:FireServer() end)
+                end
+            end
+        end
+
+        -- Auto mode: keep trying
+        if auto then
+            while Config.Money._autoIllegalRunning do
+                for name, remote in pairs(remotes) do
+                    local n = name:lower()
+                    if n:find("sell") or n:find("money") or n:find("illegal") or n:find("drug") then
+                        pcall(function() remote:FireServer() end)
+                    end
+                end
+                task.wait(0.5)
+            end
+        end
+    end)
+end
+
+-- Bank action
+local function doBankAction(action, amount)
+    task.spawn(function()
+        local remotes = findAllRemotes()
+        for name, remote in pairs(remotes) do
+            local n = name:lower()
+            if n:find("bank") or n:find("atm") or n:find("deposit") or n:find("withdraw") then
+                pcall(function()
+                    remote:FireServer(action, amount)
+                    remote:FireServer(action:lower(), tonumber(amount))
+                    remote:FireServer({Action = action, Amount = tonumber(amount)})
+                end)
+            end
+        end
+    end)
+end
 
 ------------------------------------------------------------
 -- Config
@@ -739,18 +911,29 @@ addToggle(tabs.Money, "Auto Farm Studio", false, function(v) Config.Money.AutoFa
 addToggle(tabs.Money, "Auto Farm Dumpsters", false, function(v) Config.Money.AutoFarmDumpsters = v end, nextOrder())
 
 addSection(tabs.Money, "Vulnerability Section", nextOrder())
-addButton(tabs.Money, "Generate Max Illegal Money Manual", "Requires Ice-Fruit Cup In Inventory!", function() end, nextOrder())
-addButton(tabs.Money, "Generate Max Illegal Money Auto", "Need 5K To Do This!", function() end, nextOrder())
+addButton(tabs.Money, "Generate Max Illegal Money Manual", "Requires Ice-Fruit Cup In Inventory!", function()
+    generateIllegalMoney(false)
+end, nextOrder())
+Config.Money._autoIllegalRunning = false
+addToggle(tabs.Money, "Generate Max Illegal Money Auto", false, function(v)
+    Config.Money._autoIllegalRunning = v
+    if v then generateIllegalMoney(true) end
+end, nextOrder())
 
 addSection(tabs.Money, "Bank Actions", nextOrder())
+addSlider(tabs.Money, "Money Amount", 0, 999999, 0, function(v) Config.Money.MoneyAmount = v end, nextOrder())
 addDropdown(tabs.Money, "Bank Action", {"Deposit", "Withdraw", "Drop"}, "Deposit", function(v) Config.Money.SelectedBankAction = v end, nextOrder())
-addButton(tabs.Money, "Apply Selected Bank Action", "", function() end, nextOrder())
+addButton(tabs.Money, "Apply Selected Bank Action", "", function()
+    doBankAction(Config.Money.SelectedBankAction, Config.Money.MoneyAmount)
+end, nextOrder())
 addToggle(tabs.Money, "Auto Deposit", false, function(v) Config.Money.AutoDeposit = v end, nextOrder())
 addToggle(tabs.Money, "Auto Withdraw", false, function(v) Config.Money.AutoWithdraw = v end, nextOrder())
 addToggle(tabs.Money, "Auto Drop", false, function(v) Config.Money.AutoDrop = v end, nextOrder())
 
 addSection(tabs.Money, "Duping Section", nextOrder())
-addButton(tabs.Money, "Duplicate Current Item", "Can Take Few Tries!", function() end, nextOrder())
+addButton(tabs.Money, "Duplicate Current Item", "Can Take Few Tries!", function()
+    duplicateItem()
+end, nextOrder())
 
 ------------------------------------------------------------
 -- MISC TAB
