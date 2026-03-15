@@ -1,4 +1,4 @@
-# Tha Bronx 3 - Bypassin Premium
+# Tha Bronx 3 - Synapse-Xenon Premium
 
 A feature-rich Lua script for Tha Bronx 3, compatible with Luarmor key system distribution.
 

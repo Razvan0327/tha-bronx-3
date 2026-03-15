@@ -1,5 +1,5 @@
 --[[
-    Tha Bronx 3 - Bypassin Premium
+    Tha Bronx 3 - Synapse-Xenon Premium
     Luarmor Compatible Script
     
     Structure:
@@ -134,7 +134,7 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/d
 -- Window Creation
 ------------------------------------------------------------
 local Window = Fluent:CreateWindow({
-    Title = "Bypassin" .. "    " .. "Premium User!",
+    Title = "Synapse-Xenon" .. "    " .. "Premium User!",
     SubTitle = "",
     TabWidth = 130,
     Size = UDim2.fromOffset(640, 460),
@@ -1059,7 +1059,7 @@ end
 ------------------------------------------------------------
 do
     SaveManager:SetLibrary(Fluent)
-    SaveManager:SetFolder("BypassinThaBronx3")
+    SaveManager:SetFolder("SynapseXenonThaBronx3")
     SaveManager:BuildConfigSection(Tabs.Settings)
 
     Tabs.Settings:AddSection("UI Settings")
@@ -1408,7 +1408,7 @@ end)
 Window:SelectTab(1)
 
 Fluent:Notify({
-    Title = "Bypassin",
+    Title = "Synapse-Xenon",
     Content = "Tha Bronx 3 script loaded successfully!",
     Duration = 5,
 })
