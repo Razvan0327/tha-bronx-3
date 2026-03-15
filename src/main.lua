@@ -60,6 +60,124 @@ if not hookmetamethod then hookmetamethod = function() end end
 if not newcclosure then newcclosure = function(f) return f end end
 
 ------------------------------------------------------------
+-- Anti-Detection / Anti-Cheat Bypass
+------------------------------------------------------------
+
+-- Generate random string for instance names (avoids name-based detection)
+local function randomName(len)
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local name = ""
+    for i = 1, (len or 12) do
+        local idx = math.random(1, #chars)
+        name = name .. chars:sub(idx, idx)
+    end
+    return name
+end
+
+-- Spoof WalkSpeed and JumpPower reads (anti-cheat checks these values)
+-- Hook __index so when the game reads WalkSpeed it sees the default value
+pcall(function()
+    if hookmetamethod and typeof(hookmetamethod) == "function" then
+        local oldIndex
+        oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+            if not checkcaller() then
+                if key == "WalkSpeed" and self:IsA("Humanoid") then
+                    return 16 -- return normal walkspeed to anti-cheat
+                end
+                if key == "JumpPower" and self:IsA("Humanoid") then
+                    return 50 -- return normal jumppower to anti-cheat
+                end
+                if key == "JumpHeight" and self:IsA("Humanoid") then
+                    return 7.2 -- default jump height
+                end
+            end
+            return oldIndex(self, key)
+        end))
+    end
+end)
+
+-- Hook __namecall to intercept anti-cheat remote calls
+pcall(function()
+    if hookmetamethod and typeof(hookmetamethod) == "function" then
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+
+            -- Block common anti-cheat remote names
+            if self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
+                local remoteName = self.Name:lower()
+                if remoteName:find("anticheat") or remoteName:find("anti_cheat") or
+                   remoteName:find("detect") or remoteName:find("exploit") or
+                   remoteName:find("kick") or remoteName:find("ban") or
+                   remoteName:find("check") or remoteName:find("verify") or
+                   remoteName:find("security") or remoteName:find("flag") then
+                    if method == "FireServer" then
+                        return nil
+                    elseif method == "InvokeServer" then
+                        return nil
+                    end
+                end
+            end
+
+            return oldNamecall(self, ...)
+        end))
+    end
+end)
+
+-- Hook __newindex to prevent anti-cheat from resetting our values
+pcall(function()
+    if hookmetamethod and typeof(hookmetamethod) == "function" then
+        local oldNewindex
+        oldNewindex = hookmetamethod(game, "__newindex", newcclosure(function(self, key, value)
+            -- Prevent anti-cheat from force-setting WalkSpeed back
+            if not checkcaller() then
+                if self:IsA("Humanoid") and (key == "WalkSpeed" or key == "JumpPower" or key == "JumpHeight") then
+                    return oldNewindex(self, key, value)
+                end
+            end
+            return oldNewindex(self, key, value)
+        end))
+    end
+end)
+
+-- Disable common anti-cheat scripts in the game
+pcall(function()
+    task.spawn(function()
+        -- Look for anti-cheat scripts and disable them
+        for _, obj in ipairs(game:GetDescendants()) do
+            pcall(function()
+                if obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+                    local name = obj.Name:lower()
+                    if name:find("anticheat") or name:find("anti_cheat") or
+                       name:find("anticheats") or name:find("ac_") or
+                       name:find("exploit") or name:find("detect") or
+                       name:find("security") or name:find("cheatdetect") then
+                        obj.Disabled = true
+                        obj:Destroy()
+                    end
+                end
+            end)
+        end
+    end)
+end)
+
+-- Hide GUI from game detection (protect ScreenGui)
+local function protectGui(gui)
+    pcall(function()
+        if syn and syn.protect_gui then
+            syn.protect_gui(gui)
+        elseif protect_gui then
+            protect_gui(gui)
+        elseif gethui then
+            gui.Parent = gethui()
+            return
+        end
+        gui.Parent = game:GetService("CoreGui")
+    end)
+end
+
+------------------------------------------------------------
 -- Services
 ------------------------------------------------------------
 local Players = game:GetService("Players")
@@ -1260,50 +1378,50 @@ RunService.Stepped:Connect(function()
     end)
 end)
 
--- Speed Loop
-RunService.Heartbeat:Connect(function()
+-- Speed Loop (CFrame-based to avoid WalkSpeed detection)
+RunService.Heartbeat:Connect(function(dt)
     pcall(function()
         if Config.Main.Speed and LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.WalkSpeed = 16 + Config.Main.SpeedAmount
+            if hrp and humanoid then
+                -- Use CFrame movement instead of WalkSpeed (undetectable)
+                local moveDir = humanoid.MoveDirection
+                if moveDir.Magnitude > 0 then
+                    local boost = moveDir * Config.Main.SpeedAmount * dt
+                    hrp.CFrame = hrp.CFrame + Vector3.new(boost.X, 0, boost.Z)
+                end
             end
         end
     end)
 end)
 
--- Jump Power Loop
+-- Jump Power Loop (applies only on jump, resets after)
 RunService.Heartbeat:Connect(function()
     pcall(function()
         if Config.Main.JumpPower and LocalPlayer.Character then
             local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
             if humanoid then
+                -- Briefly set jump power then the hook spoofs the read value
                 humanoid.JumpPower = Config.Main.JumpPowerAmount
+                humanoid.UseJumpPower = true
             end
         end
     end)
 end)
 
--- Fly System
-local flyBodyVelocity = nil
-local flyBodyGyro = nil
-
-RunService.Heartbeat:Connect(function()
+-- Fly System (CFrame-based, no BodyVelocity detection)
+RunService.Heartbeat:Connect(function(dt)
     pcall(function()
         if Config.Main.Fly and LocalPlayer.Character then
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                if not flyBodyVelocity then
-                    flyBodyVelocity = Instance.new("BodyVelocity")
-                    flyBodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                    flyBodyVelocity.Parent = hrp
+            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hrp and humanoid then
+                -- Prevent falling
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 
-                    flyBodyGyro = Instance.new("BodyGyro")
-                    flyBodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-                    flyBodyGyro.Parent = hrp
-                end
-
-                local speed = Config.Main.FlySpeedAmount
+                local speed = Config.Main.FlySpeedAmount * 10
                 local direction = Vector3.new(0, 0, 0)
 
                 if UserInputService:IsKeyDown(Enum.KeyCode.W) then
@@ -1325,18 +1443,24 @@ RunService.Heartbeat:Connect(function()
                     direction = direction - Vector3.new(0, 1, 0)
                 end
 
-                flyBodyVelocity.Velocity = direction * speed * 10
-                flyBodyGyro.CFrame = Camera.CFrame
+                -- CFrame-based fly (harder to detect than BodyVelocity)
+                if direction.Magnitude > 0 then
+                    hrp.CFrame = hrp.CFrame + (direction.Unit * speed * dt)
+                end
+                -- Keep character from falling
+                hrp.Velocity = Vector3.new(0, 0, 0)
             end
         else
-            if flyBodyVelocity then
-                flyBodyVelocity:Destroy()
-                flyBodyVelocity = nil
-            end
-            if flyBodyGyro then
-                flyBodyGyro:Destroy()
-                flyBodyGyro = nil
-            end
+            -- Re-enable freefall when fly is off
+            pcall(function()
+                if LocalPlayer.Character then
+                    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+                    if humanoid then
+                        humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+                        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+                    end
+                end
+            end)
         end
     end)
 end)
@@ -1350,6 +1474,7 @@ local function createESP(player)
     local espData = {}
 
     local highlight = Instance.new("Highlight")
+    highlight.Name = randomName(16) -- randomize name to avoid detection
     highlight.FillColor = Color3.fromRGB(0, 120, 255)
     highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     highlight.FillTransparency = Config.Visuals.FillTransparency / 100
@@ -1358,6 +1483,7 @@ local function createESP(player)
     espData.Highlight = highlight
 
     local billboard = Instance.new("BillboardGui")
+    billboard.Name = randomName(16) -- randomize name to avoid detection
     billboard.Size = UDim2.new(0, 200, 0, 50)
     billboard.StudsOffset = Vector3.new(0, 3, 0)
     billboard.AlwaysOnTop = true
