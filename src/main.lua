@@ -1,15 +1,13 @@
 --[[
     Tha Bronx 3 - Synapse-Xenon Premium
     Luarmor Compatible Script
-    Compatible with: Xeno, Solara, Fluxus, Delta, and other low-level executors
-    Uses Orion Library (broad executor support)
+    Self-contained UI - no external libraries needed
+    Compatible with: Xeno, Solara, Fluxus, Delta, and all executors
 ]]
 
 ------------------------------------------------------------
 -- Executor Compatibility Layer
 ------------------------------------------------------------
-
--- Polyfill: task library
 if not task then
     task = {
         wait = function(t) return wait(t or 0) end,
@@ -19,140 +17,88 @@ if not task then
     }
 end
 
--- Polyfill: firetouchinterest
 if not firetouchinterest then
-    firetouchinterest = function(part1, part2, toggle)
-        if toggle == 0 then
-            local oldCF = part1.CFrame
-            part1.CFrame = part2.CFrame
+    firetouchinterest = function(p1, p2, t)
+        if t == 0 then
+            local old = p1.CFrame
+            p1.CFrame = p2.CFrame
             task.wait()
-            part1.CFrame = oldCF
+            p1.CFrame = old
         end
     end
 end
 
--- Polyfill: Drawing API stub
 local DrawingSupported = pcall(function() local _ = Drawing.new("Circle") end)
 if not DrawingSupported then
     Drawing = Drawing or {}
     Drawing.new = Drawing.new or function()
         return setmetatable({}, {
-            __index = function(self, key) return rawget(self, key) end,
-            __newindex = function(self, key, value) rawset(self, key, value) end,
+            __index = function(s, k) return rawget(s, k) end,
+            __newindex = function(s, k, v) rawset(s, k, v) end,
         })
     end
 end
 
--- Polyfill: file system
 if not isfile then isfile = function() return false end end
 if not readfile then readfile = function() return "{}" end end
 if not writefile then writefile = function() end end
 if not makefolder then makefolder = function() end end
 if not isfolder then isfolder = function() return false end end
 if not listfiles then listfiles = function() return {} end end
-if not delfile then delfile = function() end end
-if not delfolder then delfolder = function() end end
-
--- Polyfill: misc exploit functions
 if not setclipboard then setclipboard = function() end end
 if not getgenv then getgenv = function() return _G end end
 if not hookmetamethod then hookmetamethod = function() end end
 if not newcclosure then newcclosure = function(f) return f end end
 
 ------------------------------------------------------------
--- Anti-Detection / Anti-Cheat Bypass
+-- Anti-Detection
 ------------------------------------------------------------
-
--- Generate random string for instance names (avoids name-based detection)
 local function randomName(len)
-    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local name = ""
+    local c = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local n = ""
     for i = 1, (len or 12) do
-        local idx = math.random(1, #chars)
-        name = name .. chars:sub(idx, idx)
+        local idx = math.random(1, #c)
+        n = n .. c:sub(idx, idx)
     end
-    return name
+    return n
 end
 
--- Spoof WalkSpeed and JumpPower reads (anti-cheat checks these values)
--- Hook __index so when the game reads WalkSpeed it sees the default value
 pcall(function()
-    if hookmetamethod and typeof(hookmetamethod) == "function" then
-        local oldIndex
-        oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+    if typeof(hookmetamethod) == "function" then
+        local oldIdx
+        oldIdx = hookmetamethod(game, "__index", newcclosure(function(self, key)
             if not checkcaller() then
-                if key == "WalkSpeed" and self:IsA("Humanoid") then
-                    return 16 -- return normal walkspeed to anti-cheat
-                end
-                if key == "JumpPower" and self:IsA("Humanoid") then
-                    return 50 -- return normal jumppower to anti-cheat
-                end
-                if key == "JumpHeight" and self:IsA("Humanoid") then
-                    return 7.2 -- default jump height
-                end
+                if key == "WalkSpeed" and self:IsA("Humanoid") then return 16 end
+                if key == "JumpPower" and self:IsA("Humanoid") then return 50 end
             end
-            return oldIndex(self, key)
+            return oldIdx(self, key)
         end))
     end
 end)
 
--- Hook __namecall to intercept anti-cheat remote calls
 pcall(function()
-    if hookmetamethod and typeof(hookmetamethod) == "function" then
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    if typeof(hookmetamethod) == "function" then
+        local oldNc
+        oldNc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            local args = {...}
-
-            -- Block common anti-cheat remote names
-            if self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
-                local remoteName = self.Name:lower()
-                if remoteName:find("anticheat") or remoteName:find("anti_cheat") or
-                   remoteName:find("detect") or remoteName:find("exploit") or
-                   remoteName:find("kick") or remoteName:find("ban") or
-                   remoteName:find("check") or remoteName:find("verify") or
-                   remoteName:find("security") or remoteName:find("flag") then
-                    if method == "FireServer" then
-                        return nil
-                    elseif method == "InvokeServer" then
-                        return nil
-                    end
+            if (self:IsA("RemoteEvent") or self:IsA("RemoteFunction")) then
+                local nm = self.Name:lower()
+                if nm:find("anticheat") or nm:find("detect") or nm:find("exploit") or nm:find("kick") or nm:find("ban") or nm:find("security") then
+                    if method == "FireServer" or method == "InvokeServer" then return nil end
                 end
             end
-
-            return oldNamecall(self, ...)
+            return oldNc(self, ...)
         end))
     end
 end)
 
--- Hook __newindex to prevent anti-cheat from resetting our values
-pcall(function()
-    if hookmetamethod and typeof(hookmetamethod) == "function" then
-        local oldNewindex
-        oldNewindex = hookmetamethod(game, "__newindex", newcclosure(function(self, key, value)
-            -- Prevent anti-cheat from force-setting WalkSpeed back
-            if not checkcaller() then
-                if self:IsA("Humanoid") and (key == "WalkSpeed" or key == "JumpPower" or key == "JumpHeight") then
-                    return oldNewindex(self, key, value)
-                end
-            end
-            return oldNewindex(self, key, value)
-        end))
-    end
-end)
-
--- Disable common anti-cheat scripts in the game
 pcall(function()
     task.spawn(function()
-        -- Look for anti-cheat scripts and disable them
         for _, obj in ipairs(game:GetDescendants()) do
             pcall(function()
-                if obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
-                    local name = obj.Name:lower()
-                    if name:find("anticheat") or name:find("anti_cheat") or
-                       name:find("anticheats") or name:find("ac_") or
-                       name:find("exploit") or name:find("detect") or
-                       name:find("security") or name:find("cheatdetect") then
+                if (obj:IsA("LocalScript") or obj:IsA("ModuleScript")) then
+                    local nm = obj.Name:lower()
+                    if nm:find("anticheat") or nm:find("anti_cheat") or nm:find("exploit") or nm:find("detect") then
                         obj.Disabled = true
                         obj:Destroy()
                     end
@@ -162,1303 +108,785 @@ pcall(function()
     end)
 end)
 
--- Hide GUI from game detection (protect ScreenGui)
-local function protectGui(gui)
-    pcall(function()
-        if syn and syn.protect_gui then
-            syn.protect_gui(gui)
-        elseif protect_gui then
-            protect_gui(gui)
-        elseif gethui then
-            gui.Parent = gethui()
-            return
-        end
-        gui.Parent = game:GetService("CoreGui")
-    end)
-end
-
 ------------------------------------------------------------
 -- Services
 ------------------------------------------------------------
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
+local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
 
-local LocalPlayer = Players.LocalPlayer
+local LP = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
+local Mouse = LP:GetMouse()
 
 ------------------------------------------------------------
--- Config State
+-- Config
 ------------------------------------------------------------
 local Config = {
     Main = {
-        SelectedPlayer = nil,
-        NoClip = false,
-        Speed = false,
-        SpeedAmount = 0,
-        Fly = false,
-        FlySpeedAmount = 7,
-        JumpPower = false,
-        JumpPowerAmount = 100,
-        SelectedUI = "ThaShop",
-        EnableUI = false,
+        SelectedPlayer = nil, NoClip = false, Speed = false, SpeedAmount = 0,
+        Fly = false, FlySpeedAmount = 7, JumpPower = false, JumpPowerAmount = 100,
     },
     Money = {
-        AutoFarmConstruction = false,
-        AutoFarmBank = false,
-        AutoFarmHouse = false,
-        AutoFarmStudio = false,
-        AutoFarmDumpsters = false,
-        MoneyAmount = 0,
-        SelectedBankAction = "Deposit",
-        AutoDeposit = false,
-        AutoWithdraw = false,
-        AutoDrop = false,
+        AutoFarmConstruction = false, AutoFarmBank = false, AutoFarmHouse = false,
+        AutoFarmStudio = false, AutoFarmDumpsters = false,
+        MoneyAmount = 0, SelectedBankAction = "Deposit",
+        AutoDeposit = false, AutoWithdraw = false, AutoDrop = false,
     },
     Misc = {
-        InfiniteStamina = false,
-        InstantRespawn = false,
-        InfiniteSleep = false,
-        InfiniteHunger = false,
-        InstantInteract = false,
-        AutoPickupCash = false,
-        DisableBloodEffects = false,
-        UnlockLockedCars = false,
-        NoRentPay = false,
-        NoFallDamage = false,
-        RespawnWhereDied = false,
-        SelectedItem = ".TecMag - $20",
-        TeleportLocation = "Basketball Court",
-        SelectedOutfit = "Amiri Outfit",
+        InfiniteStamina = false, InstantRespawn = false, InfiniteSleep = false,
+        InfiniteHunger = false, InstantInteract = false, AutoPickupCash = false,
+        DisableBloodEffects = false, UnlockLockedCars = false, NoRentPay = false,
+        NoFallDamage = false, RespawnWhereDied = false,
+        TeleportLocation = "Basketball Court", SelectedOutfit = "Amiri Outfit",
     },
     Combat = {
-        SilentAim = {
-            Enabled = false,
-            VisibleCheck = false,
-            AimlockType = "Mouse",
-            TargetParts = "Head",
-            MaxDistance = 50,
-            Smoothness = 50,
-            FOVEnabled = false,
-            DrawCircle = false,
-            FOVRadius = 50,
-            FOVSides = 50,
-            SnaplineEnabled = false,
-            SnaplineThickness = 50,
-        },
         Aimlock = {
-            Enabled = false,
-            VisibleCheck = false,
-            AimlockType = "Mouse",
-            TargetParts = "Head",
-            MaxDistance = 50,
-            Smoothness = 50,
-            FOVEnabled = false,
-            DrawCircle = false,
-            FOVRadius = 50,
-            FOVSides = 50,
-            SnaplineEnabled = false,
-            SnaplineThickness = 50,
+            Enabled = false, TargetParts = "Head", MaxDistance = 50,
+            Smoothness = 50, FOVEnabled = false, FOVRadius = 50,
         },
     },
     Visuals = {
-        EnableESP = false,
-        CornerFrameESP = false,
-        BoxESP = false,
-        HealthBar = false,
-        HealthText = false,
-        LerpHealthColor = false,
-        GradientHealth = false,
-        Distance = false,
-        MaxDistance = 2000,
-        Chams = false,
-        ThermalEffect = false,
-        VisibleCheck = false,
-        FillTransparency = 50,
-        OutlineTransparency = 50,
-    },
-    Settings = {
-        CloseBind = Enum.KeyCode.RightShift,
+        EnableESP = false, Chams = false, Distance = false,
+        MaxDistance = 2000, FillTransparency = 50, OutlineTransparency = 50,
     },
 }
 
 ------------------------------------------------------------
--- Load UI Library (multiple fallbacks for max compatibility)
+-- Built-in UI System (no external library)
 ------------------------------------------------------------
-print("[Synapse-Xenon] Script started loading...")
-warn("[Synapse-Xenon] Script started loading...")
+local SG = Instance.new("ScreenGui")
+SG.Name = randomName(16)
+SG.ResetOnSpawn = false
+SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local OrionLib = nil
+-- Protect and parent GUI
+pcall(function()
+    if syn and syn.protect_gui then syn.protect_gui(SG) end
+end)
+pcall(function()
+    if gethui then SG.Parent = gethui() return end
+end)
+if not SG.Parent then
+    pcall(function() SG.Parent = game:GetService("CoreGui") end)
+end
+if not SG.Parent then
+    SG.Parent = LP:WaitForChild("PlayerGui")
+end
 
--- Helper: try to fetch and execute a script from URL
-local function tryLoad(url)
-    local ok, source = pcall(function()
-        return game:HttpGet(url, true)
-    end)
-    if not ok or not source or source == "" then
-        -- Try alternate HTTP methods
-        pcall(function()
-            if request then
-                source = request({Url = url, Method = "GET"}).Body
-            elseif http_request then
-                source = http_request({Url = url, Method = "GET"}).Body
-            elseif (syn and syn.request) then
-                source = syn.request({Url = url, Method = "GET"}).Body
-            end
-        end)
+-- Colors
+local C = {
+    bg = Color3.fromRGB(20, 20, 25),
+    sidebar = Color3.fromRGB(25, 25, 32),
+    tab = Color3.fromRGB(30, 30, 40),
+    section = Color3.fromRGB(35, 35, 45),
+    accent = Color3.fromRGB(0, 120, 255),
+    text = Color3.fromRGB(220, 220, 220),
+    dimText = Color3.fromRGB(140, 140, 150),
+    toggleOff = Color3.fromRGB(50, 50, 60),
+    toggleOn = Color3.fromRGB(0, 120, 255),
+    input = Color3.fromRGB(40, 40, 50),
+}
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = randomName(8)
+MainFrame.Size = UDim2.new(0, 620, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -310, 0.5, -210)
+MainFrame.BackgroundColor3 = C.bg
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = SG
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = MainFrame
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 35)
+TitleBar.BackgroundColor3 = C.sidebar
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = TitleBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(0, 300, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Synapse-Xenon  |  Premium User!"
+TitleLabel.TextColor3 = C.accent
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 14
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 3)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = C.dimText
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.Parent = TitleBar
+
+-- Sidebar
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 120, 1, -35)
+Sidebar.Position = UDim2.new(0, 0, 0, 35)
+Sidebar.BackgroundColor3 = C.sidebar
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+-- Content Area
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -120, 1, -35)
+Content.Position = UDim2.new(0, 120, 0, 35)
+Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ClipsDescendants = true
+Content.Parent = MainFrame
+
+-- Tab system
+local tabs = {}
+local tabButtons = {}
+local currentTab = nil
+
+local function createTabButton(name, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 32)
+    btn.Position = UDim2.new(0, 5, 0, 5 + (order - 1) * 36)
+    btn.BackgroundColor3 = C.tab
+    btn.BackgroundTransparency = 1
+    btn.Text = name
+    btn.TextColor3 = C.dimText
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 12
+    btn.BorderSizePixel = 0
+    btn.Parent = Sidebar
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    return btn
+end
+
+local function createTabPage()
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, -10, 1, -10)
+    scroll.Position = UDim2.new(0, 5, 0, 5)
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 4
+    scroll.ScrollBarImageColor3 = C.accent
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.Visible = false
+    scroll.Parent = Content
+
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 4)
+    layout.Parent = scroll
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 5)
+    padding.PaddingRight = UDim.new(0, 5)
+    padding.PaddingTop = UDim.new(0, 5)
+    padding.Parent = scroll
+
+    return scroll
+end
+
+local function switchTab(name)
+    for n, page in pairs(tabs) do
+        page.Visible = (n == name)
     end
-    if source and source ~= "" then
-        local fn, err = loadstring(source)
-        if fn then
-            local ok2, result = pcall(fn)
-            if ok2 then return result end
-            warn("[Synapse-Xenon] Library exec error: " .. tostring(result))
+    for n, btn in pairs(tabButtons) do
+        if n == name then
+            btn.BackgroundTransparency = 0
+            btn.BackgroundColor3 = C.accent
+            btn.TextColor3 = Color3.new(1, 1, 1)
         else
-            warn("[Synapse-Xenon] Loadstring error: " .. tostring(err))
+            btn.BackgroundTransparency = 1
+            btn.TextColor3 = C.dimText
         end
     end
-    return nil
+    currentTab = name
 end
 
--- Try multiple UI library sources (ordered by Solara compatibility)
-local libraryUrls = {
-    -- Orion (multiple mirrors)
-    "https://raw.githubusercontent.com/shlexware/Orion/main/source",
-    "https://raw.githubusercontent.com/jensonhirst/orion/main/orion",
-    -- Orion v2 fork
-    "https://raw.githubusercontent.com/Ion-Shield/Orion/main/source",
-}
-
-for i, url in ipairs(libraryUrls) do
-    print("[Synapse-Xenon] Trying UI library source " .. i .. "...")
-    OrionLib = tryLoad(url)
-    if OrionLib then
-        print("[Synapse-Xenon] UI library loaded from source " .. i)
-        break
-    end
+-- UI Element Builders
+local function addSection(page, text, order)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 25)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "  " .. text
+    lbl.TextColor3 = C.accent
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 13
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.LayoutOrder = order
+    lbl.Parent = page
+    return lbl
 end
 
-if not OrionLib then
-    -- Absolute last resort: create a minimal notification so user knows script ran
-    pcall(function()
-        local sg = Instance.new("ScreenGui")
-        sg.Name = "SynapseXenonFallback"
-        sg.ResetOnSpawn = false
-        if (syn and syn.protect_gui) then
-            syn.protect_gui(sg)
-        end
-        sg.Parent = game:GetService("CoreGui")
+local function addToggle(page, text, default, callback, order)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 30)
+    frame.BackgroundColor3 = C.section
+    frame.BorderSizePixel = 0
+    frame.LayoutOrder = order
+    frame.Parent = page
 
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 400, 0, 60)
-        frame.Position = UDim2.new(0.5, -200, 0, 10)
-        frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        frame.BorderSizePixel = 0
-        frame.Parent = sg
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
 
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 8)
-        corner.Parent = frame
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -60, 1, 0)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = C.text
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
 
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -20, 1, 0)
-        label.Position = UDim2.new(0, 10, 0, 0)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = Color3.fromRGB(255, 80, 80)
-        label.Font = Enum.Font.GothamBold
-        label.TextSize = 14
-        label.Text = "[Synapse-Xenon] UI library failed to load. Try a different executor or enable HTTP requests."
-        label.TextWrapped = true
-        label.Parent = frame
+    local togBg = Instance.new("Frame")
+    togBg.Size = UDim2.new(0, 36, 0, 18)
+    togBg.Position = UDim2.new(1, -46, 0.5, -9)
+    togBg.BackgroundColor3 = default and C.toggleOn or C.toggleOff
+    togBg.BorderSizePixel = 0
+    togBg.Parent = frame
 
-        game:GetService("Debris"):AddItem(sg, 15)
+    local togCorner = Instance.new("UICorner")
+    togCorner.CornerRadius = UDim.new(1, 0)
+    togCorner.Parent = togBg
+
+    local circle = Instance.new("Frame")
+    circle.Size = UDim2.new(0, 14, 0, 14)
+    circle.Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    circle.BackgroundColor3 = Color3.new(1, 1, 1)
+    circle.BorderSizePixel = 0
+    circle.Parent = togBg
+
+    local circCorner = Instance.new("UICorner")
+    circCorner.CornerRadius = UDim.new(1, 0)
+    circCorner.Parent = circle
+
+    local state = default or false
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.Parent = frame
+
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        togBg.BackgroundColor3 = state and C.toggleOn or C.toggleOff
+        TweenService:Create(circle, TweenInfo.new(0.15), {
+            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        }):Play()
+        if callback then callback(state) end
     end)
 
-    warn("[Synapse-Xenon] All UI library sources failed. The script features will still run without GUI.")
-    -- Continue without GUI - features still work via Config defaults
+    return frame
+end
+
+local function addSlider(page, text, min, max, default, callback, order)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 45)
+    frame.BackgroundColor3 = C.section
+    frame.BorderSizePixel = 0
+    frame.LayoutOrder = order
+    frame.Parent = page
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -60, 0, 20)
+    lbl.Position = UDim2.new(0, 10, 0, 2)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = C.text
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
+
+    local valLbl = Instance.new("TextLabel")
+    valLbl.Size = UDim2.new(0, 50, 0, 20)
+    valLbl.Position = UDim2.new(1, -55, 0, 2)
+    valLbl.BackgroundTransparency = 1
+    valLbl.Text = tostring(default)
+    valLbl.TextColor3 = C.accent
+    valLbl.Font = Enum.Font.GothamBold
+    valLbl.TextSize = 11
+    valLbl.TextXAlignment = Enum.TextXAlignment.Right
+    valLbl.Parent = frame
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, -20, 0, 6)
+    track.Position = UDim2.new(0, 10, 0, 30)
+    track.BackgroundColor3 = C.toggleOff
+    track.BorderSizePixel = 0
+    track.Parent = frame
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = track
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = C.accent
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
+
+    local sliderBtn = Instance.new("TextButton")
+    sliderBtn.Size = UDim2.new(1, 0, 0, 20)
+    sliderBtn.Position = UDim2.new(0, 0, 0, 22)
+    sliderBtn.BackgroundTransparency = 1
+    sliderBtn.Text = ""
+    sliderBtn.Parent = frame
+
+    local dragging = false
+
+    sliderBtn.MouseButton1Down:Connect(function()
+        dragging = true
+    end)
+
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local pos = UIS:GetMouseLocation()
+            local absPos = track.AbsolutePosition.X
+            local absSize = track.AbsoluteSize.X
+            local pct = math.clamp((pos.X - absPos) / absSize, 0, 1)
+            local val = math.floor(min + (max - min) * pct)
+            fill.Size = UDim2.new(pct, 0, 1, 0)
+            valLbl.Text = tostring(val)
+            if callback then callback(val) end
+        end
+    end)
+
+    return frame
+end
+
+local function addButton(page, text, desc, callback, order)
+    local frame = Instance.new("TextButton")
+    frame.Size = UDim2.new(1, 0, 0, desc ~= "" and 38 or 30)
+    frame.BackgroundColor3 = C.section
+    frame.BorderSizePixel = 0
+    frame.Text = ""
+    frame.LayoutOrder = order
+    frame.AutoButtonColor = false
+    frame.Parent = page
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -20, 0, 20)
+    lbl.Position = UDim2.new(0, 10, 0, desc ~= "" and 2 or 5)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = C.text
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
+
+    if desc ~= "" then
+        local descLbl = Instance.new("TextLabel")
+        descLbl.Size = UDim2.new(1, -20, 0, 14)
+        descLbl.Position = UDim2.new(0, 10, 0, 20)
+        descLbl.BackgroundTransparency = 1
+        descLbl.Text = desc
+        descLbl.TextColor3 = C.dimText
+        descLbl.Font = Enum.Font.Gotham
+        descLbl.TextSize = 10
+        descLbl.TextXAlignment = Enum.TextXAlignment.Left
+        descLbl.Parent = frame
+    end
+
+    frame.MouseButton1Click:Connect(function()
+        frame.BackgroundColor3 = C.accent
+        task.delay(0.15, function()
+            frame.BackgroundColor3 = C.section
+        end)
+        if callback then callback() end
+    end)
+
+    return frame
+end
+
+local function addDropdown(page, text, options, default, callback, order)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 30)
+    frame.BackgroundColor3 = C.section
+    frame.BorderSizePixel = 0
+    frame.LayoutOrder = order
+    frame.ClipsDescendants = true
+    frame.Parent = page
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.5, -10, 0, 30)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = C.text
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
+
+    local selected = Instance.new("TextButton")
+    selected.Size = UDim2.new(0.5, -10, 0, 24)
+    selected.Position = UDim2.new(0.5, 0, 0, 3)
+    selected.BackgroundColor3 = C.input
+    selected.BorderSizePixel = 0
+    selected.Text = default or options[1] or ""
+    selected.TextColor3 = C.accent
+    selected.Font = Enum.Font.Gotham
+    selected.TextSize = 11
+    selected.Parent = frame
+
+    local selCorner = Instance.new("UICorner")
+    selCorner.CornerRadius = UDim.new(0, 4)
+    selCorner.Parent = selected
+
+    local open = false
+
+    selected.MouseButton1Click:Connect(function()
+        open = not open
+        if open then
+            frame.Size = UDim2.new(1, 0, 0, 30 + #options * 24)
+            for i, opt in ipairs(options) do
+                local optBtn = Instance.new("TextButton")
+                optBtn.Name = "opt_" .. i
+                optBtn.Size = UDim2.new(0.5, -10, 0, 22)
+                optBtn.Position = UDim2.new(0.5, 0, 0, 28 + (i) * 22)
+                optBtn.BackgroundColor3 = C.input
+                optBtn.BorderSizePixel = 0
+                optBtn.Text = opt
+                optBtn.TextColor3 = C.text
+                optBtn.Font = Enum.Font.Gotham
+                optBtn.TextSize = 11
+                optBtn.Parent = frame
+
+                local oCorner = Instance.new("UICorner")
+                oCorner.CornerRadius = UDim.new(0, 4)
+                oCorner.Parent = optBtn
+
+                optBtn.MouseButton1Click:Connect(function()
+                    selected.Text = opt
+                    open = false
+                    frame.Size = UDim2.new(1, 0, 0, 30)
+                    for _, c in ipairs(frame:GetChildren()) do
+                        if c.Name:sub(1, 4) == "opt_" then c:Destroy() end
+                    end
+                    if callback then callback(opt) end
+                end)
+            end
+        else
+            frame.Size = UDim2.new(1, 0, 0, 30)
+            for _, c in ipairs(frame:GetChildren()) do
+                if c.Name:sub(1, 4) == "opt_" then c:Destroy() end
+            end
+        end
+    end)
+
+    return frame
 end
 
 ------------------------------------------------------------
--- Window Creation (only if library loaded)
+-- Create Tabs
 ------------------------------------------------------------
-if not OrionLib then
-    print("[Synapse-Xenon] Running in headless mode (no GUI)")
-    -- Skip to core loops below
-else
+local tabOrder = {"Main", "Money", "Misc", "Combat", "Visuals", "Settings"}
 
-local Window = OrionLib:MakeWindow({
-    Name = "Synapse-Xenon | Premium User!",
-    HidePremium = false,
-    SaveConfig = true,
-    ConfigFolder = "SynapseXenonThaBronx3",
-    IntroText = "Synapse-Xenon | Tha Bronx 3",
-    IntroIcon = "rbxassetid://0",
-})
+for i, name in ipairs(tabOrder) do
+    tabs[name] = createTabPage()
+    tabButtons[name] = createTabButton(name, i)
+    tabButtons[name].MouseButton1Click:Connect(function()
+        switchTab(name)
+    end)
+end
+
+switchTab("Main")
+
+------------------------------------------------------------
+-- Close / Toggle
+------------------------------------------------------------
+local guiVisible = true
+CloseBtn.MouseButton1Click:Connect(function()
+    guiVisible = not guiVisible
+    MainFrame.Visible = guiVisible
+end)
+
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        guiVisible = not guiVisible
+        MainFrame.Visible = guiVisible
+    end
+end)
 
 ------------------------------------------------------------
 -- MAIN TAB
 ------------------------------------------------------------
-local MainTab = Window:MakeTab({
-    Name = "Tha Bronx 3",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false,
-})
+local o = 0
+local function nextOrder() o = o + 1; return o end
 
--- Player list helper
-local function getPlayerNames()
-    local names = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then
-            table.insert(names, p.Name)
+-- Player options
+o = 0
+addSection(tabs.Main, "Player Options", nextOrder())
+
+local playerNames = {}
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LP then table.insert(playerNames, p.Name) end
+end
+addDropdown(tabs.Main, "Select Player", playerNames, nil, function(v) Config.Main.SelectedPlayer = v end, nextOrder())
+
+addButton(tabs.Main, "Spectate Player", "", function()
+    local t = Config.Main.SelectedPlayer
+    if t then
+        local p = Players:FindFirstChild(t)
+        if p and p.Character and p.Character:FindFirstChild("Humanoid") then
+            Camera.CameraSubject = p.Character.Humanoid
         end
     end
-    return names
-end
+end, nextOrder())
 
-MainTab:AddSection({ Name = "Select Player" })
+addButton(tabs.Main, "Stop Spectating", "", function()
+    if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+        Camera.CameraSubject = LP.Character.Humanoid
+    end
+end, nextOrder())
 
-MainTab:AddDropdown({
-    Name = "Select Player",
-    Default = "",
-    Options = getPlayerNames(),
-    Callback = function(val)
-        Config.Main.SelectedPlayer = val
-    end,
-})
-
-MainTab:AddSection({ Name = "Player Options" })
-
-MainTab:AddButton({
-    Name = "Spectate Player",
-    Callback = function()
-        local target = Config.Main.SelectedPlayer
-        if target then
-            local plr = Players:FindFirstChild(target)
-            if plr and plr.Character and plr.Character:FindFirstChild("Humanoid") then
-                Camera.CameraSubject = plr.Character.Humanoid
+addButton(tabs.Main, "Teleport To Player", "", function()
+    local t = Config.Main.SelectedPlayer
+    if t then
+        local p = Players:FindFirstChild(t)
+        if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                LP.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame
             end
         end
-    end,
-})
+    end
+end, nextOrder())
 
-MainTab:AddButton({
-    Name = "Stop Spectating",
-    Callback = function()
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            Camera.CameraSubject = LocalPlayer.Character.Humanoid
-        end
-    end,
-})
-
-MainTab:AddButton({
-    Name = "Bring Player",
-    Callback = function()
-        local target = Config.Main.SelectedPlayer
-        if target then
-            local plr = Players:FindFirstChild(target)
-            if plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    plr.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
-                end
+addButton(tabs.Main, "Bring Player", "", function()
+    local t = Config.Main.SelectedPlayer
+    if t then
+        local p = Players:FindFirstChild(t)
+        if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                p.Character.HumanoidRootPart.CFrame = LP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
             end
         end
-    end,
-})
+    end
+end, nextOrder())
 
-MainTab:AddButton({
-    Name = "Bug / Kill Player - Car",
-    Callback = function()
-        -- Game-specific remote
-    end,
-})
+addButton(tabs.Main, "Bug / Kill Player - Car", "", function() end, nextOrder())
+addButton(tabs.Main, "Auto Kill Player - Gun", "", function() end, nextOrder())
+addButton(tabs.Main, "Auto Ragdoll Player - Gun", "", function() end, nextOrder())
+addButton(tabs.Main, "Down Player - Hold Gun", "", function() end, nextOrder())
+addButton(tabs.Main, "Kill Player - Hold Gun", "", function() end, nextOrder())
 
-MainTab:AddButton({
-    Name = "Auto Kill Player - Gun",
-    Callback = function()
-        -- Game-specific remote
-    end,
-})
-
-MainTab:AddButton({
-    Name = "Auto Ragdoll Player - Gun",
-    Callback = function()
-        -- Game-specific remote
-    end,
-})
-
-MainTab:AddButton({
-    Name = "Teleport To Player",
-    Callback = function()
-        local target = Config.Main.SelectedPlayer
-        if target then
-            local plr = Players:FindFirstChild(target)
-            if plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = plr.Character.HumanoidRootPart.CFrame
-                end
-            end
-        end
-    end,
-})
-
-MainTab:AddButton({
-    Name = "Down Player - Hold Gun",
-    Callback = function()
-        -- Game-specific remote
-    end,
-})
-
-MainTab:AddButton({
-    Name = "Kill Player - Hold Gun",
-    Callback = function()
-        -- Game-specific remote
-    end,
-})
-
-MainTab:AddSection({ Name = "Movement" })
-
-MainTab:AddToggle({
-    Name = "No Clip",
-    Default = false,
-    Callback = function(val)
-        Config.Main.NoClip = val
-    end,
-})
-
-MainTab:AddToggle({
-    Name = "Speed",
-    Default = false,
-    Callback = function(val)
-        Config.Main.Speed = val
-    end,
-})
-
-MainTab:AddSlider({
-    Name = "Speed Amount",
-    Min = 0,
-    Max = 100,
-    Default = 0,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "",
-    Callback = function(val)
-        Config.Main.SpeedAmount = val
-    end,
-})
-
-MainTab:AddToggle({
-    Name = "Fly",
-    Default = false,
-    Callback = function(val)
-        Config.Main.Fly = val
-    end,
-})
-
-MainTab:AddSlider({
-    Name = "Fly Speed Amount",
-    Min = 0,
-    Max = 50,
-    Default = 7,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "",
-    Callback = function(val)
-        Config.Main.FlySpeedAmount = val
-    end,
-})
-
-MainTab:AddToggle({
-    Name = "Jump Power",
-    Default = false,
-    Callback = function(val)
-        Config.Main.JumpPower = val
-    end,
-})
-
-MainTab:AddSlider({
-    Name = "Jump Power Amount",
-    Min = 0,
-    Max = 500,
-    Default = 100,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "",
-    Callback = function(val)
-        Config.Main.JumpPowerAmount = val
-    end,
-})
-
-MainTab:AddSection({ Name = "Toggle Interfaces" })
-
-MainTab:AddDropdown({
-    Name = "Selected UI",
-    Default = "ThaShop",
-    Options = { "ThaShop", "Phone", "Inventory", "Map" },
-    Callback = function(val)
-        Config.Main.SelectedUI = val
-    end,
-})
-
-MainTab:AddToggle({
-    Name = "Enable UI",
-    Default = false,
-    Callback = function(val)
-        Config.Main.EnableUI = val
-    end,
-})
+addSection(tabs.Main, "Movement", nextOrder())
+addToggle(tabs.Main, "No Clip", false, function(v) Config.Main.NoClip = v end, nextOrder())
+addToggle(tabs.Main, "Speed", false, function(v) Config.Main.Speed = v end, nextOrder())
+addSlider(tabs.Main, "Speed Amount", 0, 100, 0, function(v) Config.Main.SpeedAmount = v end, nextOrder())
+addToggle(tabs.Main, "Fly", false, function(v) Config.Main.Fly = v end, nextOrder())
+addSlider(tabs.Main, "Fly Speed Amount", 0, 50, 7, function(v) Config.Main.FlySpeedAmount = v end, nextOrder())
+addToggle(tabs.Main, "Jump Power", false, function(v) Config.Main.JumpPower = v end, nextOrder())
+addSlider(tabs.Main, "Jump Power Amount", 0, 500, 100, function(v) Config.Main.JumpPowerAmount = v end, nextOrder())
 
 ------------------------------------------------------------
 -- MONEY TAB
 ------------------------------------------------------------
-local MoneyTab = Window:MakeTab({
-    Name = "Money",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false,
-})
+o = 0
+addSection(tabs.Money, "Farming", nextOrder())
+addToggle(tabs.Money, "Auto Farm Construction", false, function(v) Config.Money.AutoFarmConstruction = v end, nextOrder())
+addToggle(tabs.Money, "Auto Farm Bank", false, function(v) Config.Money.AutoFarmBank = v end, nextOrder())
+addToggle(tabs.Money, "Auto Farm House", false, function(v) Config.Money.AutoFarmHouse = v end, nextOrder())
+addToggle(tabs.Money, "Auto Farm Studio", false, function(v) Config.Money.AutoFarmStudio = v end, nextOrder())
+addToggle(tabs.Money, "Auto Farm Dumpsters", false, function(v) Config.Money.AutoFarmDumpsters = v end, nextOrder())
 
-MoneyTab:AddSection({ Name = "Farming" })
+addSection(tabs.Money, "Vulnerability Section", nextOrder())
+addButton(tabs.Money, "Generate Max Illegal Money Manual", "Requires Ice-Fruit Cup In Inventory!", function() end, nextOrder())
+addButton(tabs.Money, "Generate Max Illegal Money Auto", "Need 5K To Do This!", function() end, nextOrder())
 
-MoneyTab:AddToggle({
-    Name = "Auto Farm Construction",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoFarmConstruction = val
-    end,
-})
+addSection(tabs.Money, "Bank Actions", nextOrder())
+addDropdown(tabs.Money, "Bank Action", {"Deposit", "Withdraw", "Drop"}, "Deposit", function(v) Config.Money.SelectedBankAction = v end, nextOrder())
+addButton(tabs.Money, "Apply Selected Bank Action", "", function() end, nextOrder())
+addToggle(tabs.Money, "Auto Deposit", false, function(v) Config.Money.AutoDeposit = v end, nextOrder())
+addToggle(tabs.Money, "Auto Withdraw", false, function(v) Config.Money.AutoWithdraw = v end, nextOrder())
+addToggle(tabs.Money, "Auto Drop", false, function(v) Config.Money.AutoDrop = v end, nextOrder())
 
-MoneyTab:AddToggle({
-    Name = "Auto Farm Bank",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoFarmBank = val
-    end,
-})
-
-MoneyTab:AddToggle({
-    Name = "Auto Farm House",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoFarmHouse = val
-    end,
-})
-
-MoneyTab:AddToggle({
-    Name = "Auto Farm Studio",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoFarmStudio = val
-    end,
-})
-
-MoneyTab:AddToggle({
-    Name = "Auto Farm Dumpsters",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoFarmDumpsters = val
-    end,
-})
-
-MoneyTab:AddSection({ Name = "Vulnerability Section" })
-
-MoneyTab:AddButton({
-    Name = "Generate Max Illegal Money Manual",
-    Callback = function()
-        OrionLib:MakeNotification({
-            Name = "Info",
-            Content = "Requires Ice-Fruit Cup In Inventory!",
-            Time = 3,
-        })
-        -- Game-specific remote
-    end,
-})
-
-MoneyTab:AddButton({
-    Name = "Generate Max Illegal Money Auto",
-    Callback = function()
-        OrionLib:MakeNotification({
-            Name = "Info",
-            Content = "Need 5K To Do This!",
-            Time = 3,
-        })
-        -- Game-specific remote
-    end,
-})
-
-MoneyTab:AddSection({ Name = "Bank Actions" })
-
-MoneyTab:AddTextbox({
-    Name = "Money Amount",
-    Default = "",
-    TextDisappear = false,
-    Callback = function(val)
-        Config.Money.MoneyAmount = tonumber(val) or 0
-    end,
-})
-
-MoneyTab:AddDropdown({
-    Name = "Select Bank Action",
-    Default = "Deposit",
-    Options = { "Deposit", "Withdraw", "Drop" },
-    Callback = function(val)
-        Config.Money.SelectedBankAction = val
-    end,
-})
-
-MoneyTab:AddButton({
-    Name = "Apply Selected Bank Action",
-    Callback = function()
-        -- Game-specific remote using Config.Money.SelectedBankAction and Config.Money.MoneyAmount
-    end,
-})
-
-MoneyTab:AddToggle({
-    Name = "Auto Deposit",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoDeposit = val
-    end,
-})
-
-MoneyTab:AddToggle({
-    Name = "Auto Withdraw",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoWithdraw = val
-    end,
-})
-
-MoneyTab:AddToggle({
-    Name = "Auto Drop",
-    Default = false,
-    Callback = function(val)
-        Config.Money.AutoDrop = val
-    end,
-})
-
-MoneyTab:AddSection({ Name = "Duping Section" })
-
-MoneyTab:AddButton({
-    Name = "Duplicate Current Item",
-    Callback = function()
-        OrionLib:MakeNotification({
-            Name = "Info",
-            Content = "Can Take Few Tries!",
-            Time = 3,
-        })
-        -- Game-specific remote
-    end,
-})
+addSection(tabs.Money, "Duping Section", nextOrder())
+addButton(tabs.Money, "Duplicate Current Item", "Can Take Few Tries!", function() end, nextOrder())
 
 ------------------------------------------------------------
--- MISCELLANEOUS TAB
+-- MISC TAB
 ------------------------------------------------------------
-local MiscTab = Window:MakeTab({
-    Name = "Miscellaneous",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false,
-})
+o = 0
+addSection(tabs.Misc, "Local Player Modifications", nextOrder())
+addToggle(tabs.Misc, "Infinite Stamina", false, function(v) Config.Misc.InfiniteStamina = v end, nextOrder())
+addToggle(tabs.Misc, "Instant Respawn", false, function(v) Config.Misc.InstantRespawn = v end, nextOrder())
+addToggle(tabs.Misc, "Infinite Sleep", false, function(v) Config.Misc.InfiniteSleep = v end, nextOrder())
+addToggle(tabs.Misc, "Infinite Hunger", false, function(v) Config.Misc.InfiniteHunger = v end, nextOrder())
+addToggle(tabs.Misc, "Instant Interact", false, function(v) Config.Misc.InstantInteract = v end, nextOrder())
+addToggle(tabs.Misc, "Auto Pickup Cash", false, function(v) Config.Misc.AutoPickupCash = v end, nextOrder())
+addToggle(tabs.Misc, "Disable Blood Effects", false, function(v) Config.Misc.DisableBloodEffects = v end, nextOrder())
+addToggle(tabs.Misc, "Unlock Locked Cars", false, function(v) Config.Misc.UnlockLockedCars = v end, nextOrder())
+addToggle(tabs.Misc, "No Rent Pay", false, function(v) Config.Misc.NoRentPay = v end, nextOrder())
+addToggle(tabs.Misc, "No Fall Damage", false, function(v) Config.Misc.NoFallDamage = v end, nextOrder())
+addToggle(tabs.Misc, "Respawn Where You Died", false, function(v) Config.Misc.RespawnWhereDied = v end, nextOrder())
 
-MiscTab:AddSection({ Name = "Local Player Modifications" })
+addSection(tabs.Misc, "Teleport To Location", nextOrder())
+addDropdown(tabs.Misc, "Location", {
+    "Basketball Court", "Gun Store", "Bank", "Hospital",
+    "Police Station", "Car Dealer", "Studio", "Apartments",
+    "Gas Station", "Clothing Store", "Barber Shop",
+}, "Basketball Court", function(v) Config.Misc.TeleportLocation = v end, nextOrder())
+addButton(tabs.Misc, "Teleport", "", function() end, nextOrder())
 
-MiscTab:AddToggle({
-    Name = "Infinite Stamina",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.InfiniteStamina = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Instant Respawn",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.InstantRespawn = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Infinite Sleep",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.InfiniteSleep = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Infinite Hunger",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.InfiniteHunger = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Instant Interact",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.InstantInteract = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Auto Pickup Cash",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.AutoPickupCash = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Disable Blood Effects",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.DisableBloodEffects = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Unlock Locked Cars",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.UnlockLockedCars = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "No Rent Pay",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.NoRentPay = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "No Fall Damage",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.NoFallDamage = val
-    end,
-})
-
-MiscTab:AddToggle({
-    Name = "Respawn Where You Died",
-    Default = false,
-    Callback = function(val)
-        Config.Misc.RespawnWhereDied = val
-    end,
-})
-
-MiscTab:AddSection({ Name = "Purchase Selected Item" })
-
-MiscTab:AddDropdown({
-    Name = "Purchase Selected Item",
-    Default = ".TecMag - $20",
-    Options = { ".TecMag - $20", ".GlockMag - $15", ".AR Mag - $50" },
-    Callback = function(val)
-        Config.Misc.SelectedItem = val
-    end,
-})
-
-MiscTab:AddButton({
-    Name = "Purchase",
-    Callback = function()
-        -- Game-specific remote
-    end,
-})
-
-MiscTab:AddSection({ Name = "Teleport To Location" })
-
-MiscTab:AddDropdown({
-    Name = "Teleport Options",
-    Default = "Basketball Court",
-    Options = {
-        "Basketball Court", "Gun Store", "Bank", "Hospital",
-        "Police Station", "Car Dealer", "Studio", "Apartments",
-        "Gas Station", "Clothing Store", "Barber Shop",
-    },
-    Callback = function(val)
-        Config.Misc.TeleportLocation = val
-    end,
-})
-
-MiscTab:AddButton({
-    Name = "Teleport",
-    Callback = function()
-        -- Teleport to predefined coordinates based on Config.Misc.TeleportLocation
-    end,
-})
-
-MiscTab:AddSection({ Name = "Outfits" })
-
-MiscTab:AddDropdown({
-    Name = "Select Outfit",
-    Default = "Amiri Outfit",
-    Options = { "Amiri Outfit", "Nike Tech", "Bape Set", "Default" },
-    Callback = function(val)
-        Config.Misc.SelectedOutfit = val
-    end,
-})
-
-MiscTab:AddButton({
-    Name = "Apply Selected Outfit",
-    Callback = function()
-        -- Game-specific remote
-    end,
-})
+addSection(tabs.Misc, "Outfits", nextOrder())
+addDropdown(tabs.Misc, "Select Outfit", {"Amiri Outfit", "Nike Tech", "Bape Set", "Default"}, "Amiri Outfit", function(v) Config.Misc.SelectedOutfit = v end, nextOrder())
+addButton(tabs.Misc, "Apply Selected Outfit", "", function() end, nextOrder())
 
 ------------------------------------------------------------
 -- COMBAT TAB
 ------------------------------------------------------------
-local CombatTab = Window:MakeTab({
-    Name = "Combat",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false,
-})
+o = 0
+addSection(tabs.Combat, "Aimlock", nextOrder())
+addToggle(tabs.Combat, "Aimlock Enabled", false, function(v) Config.Combat.Aimlock.Enabled = v end, nextOrder())
+addDropdown(tabs.Combat, "Target Parts", {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, "Head", function(v) Config.Combat.Aimlock.TargetParts = v end, nextOrder())
+addSlider(tabs.Combat, "Max Distance %", 0, 100, 50, function(v) Config.Combat.Aimlock.MaxDistance = v end, nextOrder())
+addSlider(tabs.Combat, "Smoothness %", 0, 100, 50, function(v) Config.Combat.Aimlock.Smoothness = v end, nextOrder())
 
--- Silent Aim
-CombatTab:AddSection({ Name = "Silent Aim - General" })
-
-CombatTab:AddToggle({
-    Name = "Silent Aim Enabled",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.SilentAim.Enabled = val
-    end,
-})
-
-CombatTab:AddSection({ Name = "Silent Aim - Settings" })
-
-CombatTab:AddToggle({
-    Name = "SA Visible Check",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.SilentAim.VisibleCheck = val
-    end,
-})
-
-CombatTab:AddDropdown({
-    Name = "SA Aimlock Type",
-    Default = "Mouse",
-    Options = { "Mouse", "Camera", "Closest" },
-    Callback = function(val)
-        Config.Combat.SilentAim.AimlockType = val
-    end,
-})
-
-CombatTab:AddDropdown({
-    Name = "SA Target Parts",
-    Default = "Head",
-    Options = { "Head", "HumanoidRootPart", "UpperTorso", "LowerTorso" },
-    Callback = function(val)
-        Config.Combat.SilentAim.TargetParts = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "SA Max Distance",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.SilentAim.MaxDistance = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "SA Smoothness",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.SilentAim.Smoothness = val
-    end,
-})
-
-CombatTab:AddSection({ Name = "Silent Aim - FOV" })
-
-CombatTab:AddToggle({
-    Name = "SA FOV Enabled",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.SilentAim.FOVEnabled = val
-    end,
-})
-
-CombatTab:AddToggle({
-    Name = "SA Draw Circle",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.SilentAim.DrawCircle = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "SA FOV Radius",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.SilentAim.FOVRadius = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "SA FOV Sides",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.SilentAim.FOVSides = val
-    end,
-})
-
-CombatTab:AddSection({ Name = "Silent Aim - Snapline" })
-
-CombatTab:AddToggle({
-    Name = "SA Snapline Enabled",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.SilentAim.SnaplineEnabled = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "SA Snapline Thickness",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.SilentAim.SnaplineThickness = val
-    end,
-})
-
--- Aimlock
-CombatTab:AddSection({ Name = "Aimlock - General" })
-
-CombatTab:AddToggle({
-    Name = "Aimlock Enabled",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.Aimlock.Enabled = val
-    end,
-})
-
-CombatTab:AddSection({ Name = "Aimlock - Settings" })
-
-CombatTab:AddToggle({
-    Name = "AL Visible Check",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.Aimlock.VisibleCheck = val
-    end,
-})
-
-CombatTab:AddDropdown({
-    Name = "AL Aimlock Type",
-    Default = "Mouse",
-    Options = { "Mouse", "Camera", "Closest" },
-    Callback = function(val)
-        Config.Combat.Aimlock.AimlockType = val
-    end,
-})
-
-CombatTab:AddDropdown({
-    Name = "AL Target Parts",
-    Default = "Head",
-    Options = { "Head", "HumanoidRootPart", "UpperTorso", "LowerTorso" },
-    Callback = function(val)
-        Config.Combat.Aimlock.TargetParts = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "AL Max Distance",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.Aimlock.MaxDistance = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "AL Smoothness",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.Aimlock.Smoothness = val
-    end,
-})
-
-CombatTab:AddSection({ Name = "Aimlock - FOV" })
-
-CombatTab:AddToggle({
-    Name = "AL FOV Enabled",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.Aimlock.FOVEnabled = val
-    end,
-})
-
-CombatTab:AddToggle({
-    Name = "AL Draw Circle",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.Aimlock.DrawCircle = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "AL FOV Radius",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.Aimlock.FOVRadius = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "AL FOV Sides",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.Aimlock.FOVSides = val
-    end,
-})
-
-CombatTab:AddSection({ Name = "Aimlock - Snapline" })
-
-CombatTab:AddToggle({
-    Name = "AL Snapline Enabled",
-    Default = false,
-    Callback = function(val)
-        Config.Combat.Aimlock.SnaplineEnabled = val
-    end,
-})
-
-CombatTab:AddSlider({
-    Name = "AL Snapline Thickness",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Combat.Aimlock.SnaplineThickness = val
-    end,
-})
+addSection(tabs.Combat, "FOV Settings", nextOrder())
+addToggle(tabs.Combat, "FOV Enabled", false, function(v) Config.Combat.Aimlock.FOVEnabled = v end, nextOrder())
+addSlider(tabs.Combat, "FOV Radius %", 0, 100, 50, function(v) Config.Combat.Aimlock.FOVRadius = v end, nextOrder())
 
 ------------------------------------------------------------
 -- VISUALS TAB
 ------------------------------------------------------------
-local VisualsTab = Window:MakeTab({
-    Name = "Visuals",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false,
-})
-
-VisualsTab:AddSection({ Name = "Enable ESP" })
-
-VisualsTab:AddToggle({
-    Name = "Enable ESP",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.EnableESP = val
-    end,
-})
-
-VisualsTab:AddSection({ Name = "Box ESP" })
-
-VisualsTab:AddToggle({
-    Name = "Corner Frame ESP",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.CornerFrameESP = val
-    end,
-})
-
-VisualsTab:AddToggle({
-    Name = "Box ESP",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.BoxESP = val
-    end,
-})
-
-VisualsTab:AddSection({ Name = "Healthbar ESP" })
-
-VisualsTab:AddToggle({
-    Name = "Health Bar",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.HealthBar = val
-    end,
-})
-
-VisualsTab:AddToggle({
-    Name = "Health Text",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.HealthText = val
-    end,
-})
-
-VisualsTab:AddToggle({
-    Name = "Lerp Health Color",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.LerpHealthColor = val
-    end,
-})
-
-VisualsTab:AddToggle({
-    Name = "Gradient Health",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.GradientHealth = val
-    end,
-})
-
-VisualsTab:AddSection({ Name = "ESP Settings" })
-
-VisualsTab:AddToggle({
-    Name = "Distance",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.Distance = val
-    end,
-})
-
-VisualsTab:AddSlider({
-    Name = "Max Distance",
-    Min = 0,
-    Max = 5000,
-    Default = 2000,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 50,
-    ValueName = " studs",
-    Callback = function(val)
-        Config.Visuals.MaxDistance = val
-    end,
-})
-
-VisualsTab:AddSection({ Name = "Cham ESP" })
-
-VisualsTab:AddToggle({
-    Name = "Chams",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.Chams = val
-    end,
-})
-
-VisualsTab:AddToggle({
-    Name = "Thermal Effect",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.ThermalEffect = val
-    end,
-})
-
-VisualsTab:AddToggle({
-    Name = "Visible Check",
-    Default = false,
-    Callback = function(val)
-        Config.Visuals.VisibleCheck = val
-    end,
-})
-
-VisualsTab:AddSlider({
-    Name = "Fill Transparency",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Visuals.FillTransparency = val
-    end,
-})
-
-VisualsTab:AddSlider({
-    Name = "Outline Transparency",
-    Min = 0,
-    Max = 100,
-    Default = 50,
-    Color = Color3.fromRGB(0, 120, 255),
-    Increment = 1,
-    ValueName = "%",
-    Callback = function(val)
-        Config.Visuals.OutlineTransparency = val
-    end,
-})
-
-VisualsTab:AddSection({ Name = "World Visuals" })
+o = 0
+addSection(tabs.Visuals, "ESP", nextOrder())
+addToggle(tabs.Visuals, "Enable ESP", false, function(v) Config.Visuals.EnableESP = v end, nextOrder())
+addToggle(tabs.Visuals, "Chams (Highlight)", false, function(v) Config.Visuals.Chams = v end, nextOrder())
+addToggle(tabs.Visuals, "Show Distance", false, function(v) Config.Visuals.Distance = v end, nextOrder())
+addSlider(tabs.Visuals, "Max Distance", 0, 5000, 2000, function(v) Config.Visuals.MaxDistance = v end, nextOrder())
+addSlider(tabs.Visuals, "Fill Transparency %", 0, 100, 50, function(v) Config.Visuals.FillTransparency = v end, nextOrder())
+addSlider(tabs.Visuals, "Outline Transparency %", 0, 100, 50, function(v) Config.Visuals.OutlineTransparency = v end, nextOrder())
 
 ------------------------------------------------------------
 -- SETTINGS TAB
 ------------------------------------------------------------
-local SettingsTab = Window:MakeTab({
-    Name = "Settings",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false,
-})
-
-SettingsTab:AddSection({ Name = "UI Settings" })
-
-SettingsTab:AddBind({
-    Name = "Close / Open Bind",
-    Default = Enum.KeyCode.RightShift,
-    Hold = false,
-    Callback = function()
-        OrionLib:Destroy()
-    end,
-})
-
-SettingsTab:AddButton({
-    Name = "Destroy GUI",
-    Callback = function()
-        OrionLib:Destroy()
-    end,
-})
-
-end -- end of OrionLib GUI block
+o = 0
+addSection(tabs.Settings, "UI Settings", nextOrder())
+addButton(tabs.Settings, "Destroy GUI", "Completely removes the script UI", function()
+    SG:Destroy()
+end, nextOrder())
+addButton(tabs.Settings, "Toggle: RightShift", "Press RightShift to show/hide", function() end, nextOrder())
 
 ------------------------------------------------------------
--- CORE LOOPS (Feature Logic)
+-- CORE LOOPS
 ------------------------------------------------------------
 
--- NoClip Loop
+-- NoClip
 RunService.Stepped:Connect(function()
     pcall(function()
-        if Config.Main.NoClip and LocalPlayer.Character then
-            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
+        if Config.Main.NoClip and LP.Character then
+            for _, p in ipairs(LP.Character:GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = false end
             end
         end
     end)
 end)
 
--- Speed Loop (CFrame-based to avoid WalkSpeed detection)
+-- Speed (CFrame-based)
 RunService.Heartbeat:Connect(function(dt)
     pcall(function()
-        if Config.Main.Speed and LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if hrp and humanoid then
-                -- Use CFrame movement instead of WalkSpeed (undetectable)
-                local moveDir = humanoid.MoveDirection
-                if moveDir.Magnitude > 0 then
-                    local boost = moveDir * Config.Main.SpeedAmount * dt
-                    hrp.CFrame = hrp.CFrame + Vector3.new(boost.X, 0, boost.Z)
+        if Config.Main.Speed and LP.Character then
+            local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+            local hum = LP.Character:FindFirstChild("Humanoid")
+            if hrp and hum then
+                local dir = hum.MoveDirection
+                if dir.Magnitude > 0 then
+                    hrp.CFrame = hrp.CFrame + Vector3.new(dir.X, 0, dir.Z) * Config.Main.SpeedAmount * dt
                 end
             end
         end
     end)
 end)
 
--- Jump Power Loop (applies only on jump, resets after)
+-- Jump Power
 RunService.Heartbeat:Connect(function()
     pcall(function()
-        if Config.Main.JumpPower and LocalPlayer.Character then
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                -- Briefly set jump power then the hook spoofs the read value
-                humanoid.JumpPower = Config.Main.JumpPowerAmount
-                humanoid.UseJumpPower = true
+        if Config.Main.JumpPower and LP.Character then
+            local hum = LP.Character:FindFirstChild("Humanoid")
+            if hum then
+                hum.JumpPower = Config.Main.JumpPowerAmount
+                hum.UseJumpPower = true
             end
         end
     end)
 end)
 
--- Fly System (CFrame-based, no BodyVelocity detection)
+-- Fly (CFrame-based)
 RunService.Heartbeat:Connect(function(dt)
     pcall(function()
-        if Config.Main.Fly and LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if hrp and humanoid then
-                -- Prevent falling
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-
+        if Config.Main.Fly and LP.Character then
+            local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+            local hum = LP.Character:FindFirstChild("Humanoid")
+            if hrp and hum then
+                hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
                 local speed = Config.Main.FlySpeedAmount * 10
-                local direction = Vector3.new(0, 0, 0)
-
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    direction = direction + Camera.CFrame.LookVector
+                local dir = Vector3.new(0, 0, 0)
+                if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Camera.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Camera.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Camera.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Camera.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
+                if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+                if dir.Magnitude > 0 then
+                    hrp.CFrame = hrp.CFrame + (dir.Unit * speed * dt)
                 end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    direction = direction - Camera.CFrame.LookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    direction = direction - Camera.CFrame.RightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    direction = direction + Camera.CFrame.RightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    direction = direction + Vector3.new(0, 1, 0)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                    direction = direction - Vector3.new(0, 1, 0)
-                end
-
-                -- CFrame-based fly (harder to detect than BodyVelocity)
-                if direction.Magnitude > 0 then
-                    hrp.CFrame = hrp.CFrame + (direction.Unit * speed * dt)
-                end
-                -- Keep character from falling
                 hrp.Velocity = Vector3.new(0, 0, 0)
             end
         else
-            -- Re-enable freefall when fly is off
             pcall(function()
-                if LocalPlayer.Character then
-                    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
-                        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-                    end
+                if LP.Character then
+                    local hum = LP.Character:FindFirstChild("Humanoid")
+                    if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end
                 end
             end)
         end
@@ -1469,113 +897,92 @@ end)
 local espObjects = {}
 
 local function createESP(player)
-    if player == LocalPlayer then return end
+    if player == LP then return end
+    local data = {}
 
-    local espData = {}
+    local hl = Instance.new("Highlight")
+    hl.Name = randomName(16)
+    hl.FillColor = Color3.fromRGB(0, 120, 255)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = Config.Visuals.FillTransparency / 100
+    hl.OutlineTransparency = Config.Visuals.OutlineTransparency / 100
+    hl.Enabled = false
+    data.Highlight = hl
 
-    local highlight = Instance.new("Highlight")
-    highlight.Name = randomName(16) -- randomize name to avoid detection
-    highlight.FillColor = Color3.fromRGB(0, 120, 255)
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.FillTransparency = Config.Visuals.FillTransparency / 100
-    highlight.OutlineTransparency = Config.Visuals.OutlineTransparency / 100
-    highlight.Enabled = false
-    espData.Highlight = highlight
+    local bb = Instance.new("BillboardGui")
+    bb.Name = randomName(16)
+    bb.Size = UDim2.new(0, 200, 0, 50)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.Enabled = false
 
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = randomName(16) -- randomize name to avoid detection
-    billboard.Size = UDim2.new(0, 200, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Enabled = false
+    local nl = Instance.new("TextLabel")
+    nl.Size = UDim2.new(1, 0, 0.5, 0)
+    nl.BackgroundTransparency = 1
+    nl.TextColor3 = Color3.new(1, 1, 1)
+    nl.TextStrokeTransparency = 0.5
+    nl.Font = Enum.Font.GothamBold
+    nl.TextSize = 13
+    nl.Text = player.Name
+    nl.Parent = bb
 
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextStrokeTransparency = 0.5
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextSize = 13
-    nameLabel.Text = player.Name
-    nameLabel.Parent = billboard
+    local dl = Instance.new("TextLabel")
+    dl.Size = UDim2.new(1, 0, 0.5, 0)
+    dl.Position = UDim2.new(0, 0, 0.5, 0)
+    dl.BackgroundTransparency = 1
+    dl.TextColor3 = Color3.fromRGB(200, 200, 200)
+    dl.TextStrokeTransparency = 0.5
+    dl.Font = Enum.Font.Gotham
+    dl.TextSize = 11
+    dl.Text = ""
+    dl.Parent = bb
 
-    local distLabel = Instance.new("TextLabel")
-    distLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    distLabel.Position = UDim2.new(0, 0, 0.5, 0)
-    distLabel.BackgroundTransparency = 1
-    distLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    distLabel.TextStrokeTransparency = 0.5
-    distLabel.Font = Enum.Font.Gotham
-    distLabel.TextSize = 11
-    distLabel.Text = ""
-    distLabel.Parent = billboard
+    data.Billboard = bb
+    data.DistLabel = dl
+    espObjects[player] = data
 
-    espData.Billboard = billboard
-    espData.NameLabel = nameLabel
-    espData.DistLabel = distLabel
-
-    espObjects[player] = espData
-
-    local function onCharacterAdded(character)
+    local function onChar(char)
         pcall(function()
-            highlight.Adornee = character
-            highlight.Parent = character
-            local head = character:WaitForChild("Head", 5)
-            if head then
-                billboard.Parent = head
-            end
+            hl.Adornee = char
+            hl.Parent = char
+            local head = char:WaitForChild("Head", 5)
+            if head then bb.Parent = head end
         end)
     end
 
-    if player.Character then
-        task.spawn(function()
-            onCharacterAdded(player.Character)
-        end)
-    end
-    player.CharacterAdded:Connect(onCharacterAdded)
+    if player.Character then task.spawn(function() onChar(player.Character) end) end
+    player.CharacterAdded:Connect(onChar)
 end
 
 local function removeESP(player)
-    local data = espObjects[player]
-    if data then
-        pcall(function()
-            if data.Highlight then data.Highlight:Destroy() end
-            if data.Billboard then data.Billboard:Destroy() end
-        end)
+    local d = espObjects[player]
+    if d then
+        pcall(function() if d.Highlight then d.Highlight:Destroy() end end)
+        pcall(function() if d.Billboard then d.Billboard:Destroy() end end)
         espObjects[player] = nil
     end
 end
 
-for _, player in ipairs(Players:GetPlayers()) do
-    createESP(player)
-end
-
+for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
 Players.PlayerAdded:Connect(createESP)
 Players.PlayerRemoving:Connect(removeESP)
 
--- ESP Update Loop
+-- ESP Update
 RunService.RenderStepped:Connect(function()
     pcall(function()
         for player, data in pairs(espObjects) do
-            local enabled = Config.Visuals.EnableESP
-            local character = player.Character
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            local localHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local lhrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
 
-            if enabled and character and hrp and localHrp then
-                local dist = (hrp.Position - localHrp.Position).Magnitude
-
+            if Config.Visuals.EnableESP and char and hrp and lhrp then
+                local dist = (hrp.Position - lhrp.Position).Magnitude
                 if dist <= Config.Visuals.MaxDistance then
                     data.Highlight.Enabled = Config.Visuals.Chams
                     data.Highlight.FillTransparency = Config.Visuals.FillTransparency / 100
                     data.Highlight.OutlineTransparency = Config.Visuals.OutlineTransparency / 100
                     data.Billboard.Enabled = true
-
-                    if Config.Visuals.Distance then
-                        data.DistLabel.Text = string.format("[%d studs]", math.floor(dist))
-                    else
-                        data.DistLabel.Text = ""
-                    end
+                    data.DistLabel.Text = Config.Visuals.Distance and string.format("[%d studs]", math.floor(dist)) or ""
                 else
                     data.Highlight.Enabled = false
                     data.Billboard.Enabled = false
@@ -1588,101 +995,64 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
--- FOV Circle (only works on executors with Drawing support)
-local fovCircle = Drawing.new("Circle")
-fovCircle.Thickness = 1
-fovCircle.Color = Color3.fromRGB(0, 120, 255)
-fovCircle.Filled = false
-fovCircle.Transparency = 0.7
-fovCircle.Visible = false
+-- Aimlock
+local aimlockTarget = nil
 
-RunService.RenderStepped:Connect(function()
-    pcall(function()
-        local combatConfig = Config.Combat.Aimlock.Enabled and Config.Combat.Aimlock or Config.Combat.SilentAim
-        if combatConfig.FOVEnabled and combatConfig.DrawCircle then
-            fovCircle.Visible = true
-            fovCircle.Position = UserInputService:GetMouseLocation()
-            fovCircle.Radius = (combatConfig.FOVRadius / 100) * 300
-            fovCircle.NumSides = math.floor((combatConfig.FOVSides / 100) * 60) + 3
-        else
-            fovCircle.Visible = false
-        end
-    end)
-end)
-
--- Aimlock Function
-local function getClosestPlayerToMouse(config)
-    local closest = nil
-    local closestDist = math.huge
-    local mousePos = UserInputService:GetMouseLocation()
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local part = player.Character:FindFirstChild(config.TargetParts)
-            if part then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                if onScreen then
-                    local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                    local fovRadius = (config.FOVRadius / 100) * 300
-
-                    if (not config.FOVEnabled or dist2D <= fovRadius) and dist2D < closestDist then
-                        local localHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        if localHrp then
-                            local dist3D = (part.Position - localHrp.Position).Magnitude
-                            local maxDist = (config.MaxDistance / 100) * 1000
-                            if dist3D <= maxDist then
-                                closest = player
-                                closestDist = dist2D
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton2 and Config.Combat.Aimlock.Enabled then
+        local closest, closestDist = nil, math.huge
+        local mp = UIS:GetMouseLocation()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local part = p.Character:FindFirstChild(Config.Combat.Aimlock.TargetParts)
+                if part then
+                    local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local d2 = (Vector2.new(sp.X, sp.Y) - mp).Magnitude
+                        local fov = (Config.Combat.Aimlock.FOVRadius / 100) * 300
+                        if (not Config.Combat.Aimlock.FOVEnabled or d2 <= fov) and d2 < closestDist then
+                            local lhrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                            if lhrp then
+                                local d3 = (part.Position - lhrp.Position).Magnitude
+                                if d3 <= (Config.Combat.Aimlock.MaxDistance / 100) * 1000 then
+                                    closest = p
+                                    closestDist = d2
+                                end
                             end
                         end
                     end
                 end
             end
         end
-    end
-
-    return closest
-end
-
--- Aimlock Loop
-local aimlockTarget = nil
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        if Config.Combat.Aimlock.Enabled then
-            aimlockTarget = getClosestPlayerToMouse(Config.Combat.Aimlock)
-        end
+        aimlockTarget = closest
     end
 end)
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        aimlockTarget = nil
-    end
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then aimlockTarget = nil end
 end)
 
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if Config.Combat.Aimlock.Enabled and aimlockTarget then
-            local character = aimlockTarget.Character
-            if character then
-                local part = character:FindFirstChild(Config.Combat.Aimlock.TargetParts)
+            local char = aimlockTarget.Character
+            if char then
+                local part = char:FindFirstChild(Config.Combat.Aimlock.TargetParts)
                 if part then
-                    local smoothness = 1 - (Config.Combat.Aimlock.Smoothness / 100) * 0.9
-                    local targetCFrame = CFrame.new(Camera.CFrame.Position, part.Position)
-                    Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, smoothness)
+                    local sm = 1 - (Config.Combat.Aimlock.Smoothness / 100) * 0.9
+                    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, part.Position), sm)
                 end
             end
         end
     end)
 end)
 
--- Auto Pickup Cash Loop
+-- Auto Pickup Cash
 RunService.Heartbeat:Connect(function()
     pcall(function()
-        if Config.Misc.AutoPickupCash and LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if Config.Misc.AutoPickupCash and LP.Character then
+            local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("BasePart") and (obj.Name:lower():find("cash") or obj.Name:lower():find("money") or obj.Name:lower():find("drop")) then
@@ -1698,32 +1068,17 @@ RunService.Heartbeat:Connect(function()
     end)
 end)
 
--- No Fall Damage / State hooks
+-- No Fall Damage
 RunService.Heartbeat:Connect(function()
     pcall(function()
-        if LocalPlayer.Character then
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                if Config.Misc.NoFallDamage then
-                    humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-                end
+        if Config.Misc.NoFallDamage and LP.Character then
+            local hum = LP.Character:FindFirstChild("Humanoid")
+            if hum then
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
             end
         end
     end)
 end)
 
-------------------------------------------------------------
--- Init notification
-------------------------------------------------------------
-if OrionLib then
-    OrionLib:MakeNotification({
-        Name = "Synapse-Xenon",
-        Content = "Tha Bronx 3 script loaded successfully!",
-        Image = "rbxassetid://4483345998",
-        Time = 5,
-    })
-    OrionLib:Init()
-end
-
-print("[Synapse-Xenon] Script fully loaded!")
+print("[Synapse-Xenon] Tha Bronx 3 script fully loaded!")
