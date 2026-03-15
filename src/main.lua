@@ -170,52 +170,109 @@ local Config = {
 }
 
 ------------------------------------------------------------
--- Load Orion Library (most compatible with low-level executors)
+-- Load UI Library (multiple fallbacks for max compatibility)
 ------------------------------------------------------------
-local OrionLib
+print("[Synapse-Xenon] Script started loading...")
+warn("[Synapse-Xenon] Script started loading...")
 
-local function tryLoadOrion()
-    -- Try multiple sources for maximum compatibility
-    local urls = {
-        "https://raw.githubusercontent.com/shlexware/Orion/main/source",
-        "https://raw.githubusercontent.com/jensonhirst/orion/main/orion",
-    }
-    for _, url in ipairs(urls) do
-        local ok, result = pcall(function()
-            return loadstring(game:HttpGet(url))()
+local OrionLib = nil
+
+-- Helper: try to fetch and execute a script from URL
+local function tryLoad(url)
+    local ok, source = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+    if not ok or not source or source == "" then
+        -- Try alternate HTTP methods
+        pcall(function()
+            if request then
+                source = request({Url = url, Method = "GET"}).Body
+            elseif http_request then
+                source = http_request({Url = url, Method = "GET"}).Body
+            elseif (syn and syn.request) then
+                source = syn.request({Url = url, Method = "GET"}).Body
+            end
         end)
-        if ok and result then
-            return result
+    end
+    if source and source ~= "" then
+        local fn, err = loadstring(source)
+        if fn then
+            local ok2, result = pcall(fn)
+            if ok2 then return result end
+            warn("[Synapse-Xenon] Library exec error: " .. tostring(result))
+        else
+            warn("[Synapse-Xenon] Loadstring error: " .. tostring(err))
         end
     end
     return nil
 end
 
-OrionLib = tryLoadOrion()
+-- Try multiple UI library sources (ordered by Solara compatibility)
+local libraryUrls = {
+    -- Orion (multiple mirrors)
+    "https://raw.githubusercontent.com/shlexware/Orion/main/source",
+    "https://raw.githubusercontent.com/jensonhirst/orion/main/orion",
+    -- Orion v2 fork
+    "https://raw.githubusercontent.com/Ion-Shield/Orion/main/source",
+}
+
+for i, url in ipairs(libraryUrls) do
+    print("[Synapse-Xenon] Trying UI library source " .. i .. "...")
+    OrionLib = tryLoad(url)
+    if OrionLib then
+        print("[Synapse-Xenon] UI library loaded from source " .. i)
+        break
+    end
+end
 
 if not OrionLib then
-    -- Last resort: try with request function
+    -- Absolute last resort: create a minimal notification so user knows script ran
     pcall(function()
-        local resp
-        if request then
-            resp = request({ Url = "https://raw.githubusercontent.com/shlexware/Orion/main/source", Method = "GET" })
-        elseif http_request then
-            resp = http_request({ Url = "https://raw.githubusercontent.com/shlexware/Orion/main/source", Method = "GET" })
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "SynapseXenonFallback"
+        sg.ResetOnSpawn = false
+        if (syn and syn.protect_gui) then
+            syn.protect_gui(sg)
         end
-        if resp and resp.Body then
-            OrionLib = loadstring(resp.Body)()
-        end
+        sg.Parent = game:GetService("CoreGui")
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 400, 0, 60)
+        frame.Position = UDim2.new(0.5, -200, 0, 10)
+        frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        frame.BorderSizePixel = 0
+        frame.Parent = sg
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = frame
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -20, 1, 0)
+        label.Position = UDim2.new(0, 10, 0, 0)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(255, 80, 80)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 14
+        label.Text = "[Synapse-Xenon] UI library failed to load. Try a different executor or enable HTTP requests."
+        label.TextWrapped = true
+        label.Parent = frame
+
+        game:GetService("Debris"):AddItem(sg, 15)
     end)
+
+    warn("[Synapse-Xenon] All UI library sources failed. The script features will still run without GUI.")
+    -- Continue without GUI - features still work via Config defaults
 end
 
+------------------------------------------------------------
+-- Window Creation (only if library loaded)
+------------------------------------------------------------
 if not OrionLib then
-    warn("[Synapse-Xenon] Failed to load UI library. Check HTTP requests.")
-    return
-end
+    print("[Synapse-Xenon] Running in headless mode (no GUI)")
+    -- Skip to core loops below
+else
 
-------------------------------------------------------------
--- Window Creation
-------------------------------------------------------------
 local Window = OrionLib:MakeWindow({
     Name = "Synapse-Xenon | Premium User!",
     HidePremium = false,
@@ -1184,6 +1241,8 @@ SettingsTab:AddButton({
     end,
 })
 
+end -- end of OrionLib GUI block
+
 ------------------------------------------------------------
 -- CORE LOOPS (Feature Logic)
 ------------------------------------------------------------
@@ -1531,11 +1590,14 @@ end)
 ------------------------------------------------------------
 -- Init notification
 ------------------------------------------------------------
-OrionLib:MakeNotification({
-    Name = "Synapse-Xenon",
-    Content = "Tha Bronx 3 script loaded successfully!",
-    Image = "rbxassetid://4483345998",
-    Time = 5,
-})
+if OrionLib then
+    OrionLib:MakeNotification({
+        Name = "Synapse-Xenon",
+        Content = "Tha Bronx 3 script loaded successfully!",
+        Image = "rbxassetid://4483345998",
+        Time = 5,
+    })
+    OrionLib:Init()
+end
 
-OrionLib:Init()
+print("[Synapse-Xenon] Script fully loaded!")
