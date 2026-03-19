@@ -1,29 +1,33 @@
 # tha-bronx-3
 best script
 
-## DK Hub Script
+## Razvan's HUB Script
 
-The original loadstring:
+Custom loader script based on DK Hub. Modified with:
+- Renamed to **Razvan's HUB**
+- Key system removed -- loads the game script automatically
+- Clean loading bar animation
+
+### Supported Games
+
+| Game | Place ID |
+|------|----------|
+| Tha Bronx 3 (Main) | 18642421777 |
+| Tha Bronx 3 (VC) | 16472538603 |
+| Miami Streets | 102500767640476 |
+| Streetz Warz 2 | 11177482306 |
+| Philly Streetz 2 | 130700367963690 |
+| Cali Shoot Out | 12077443856 |
+| Bronx: Duels | 97555694718912 |
+
+### Usage
+
+Host `dk-hub-loader.lua` on your GitHub and use:
 
 ```lua
-loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-DK-hub-script-110301"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Razvan0327/tha-bronx-3/main/dk-hub-loader.lua"))()
 ```
-
-### Script Chain
-
-1. **rawscripts.net** returns another loadstring pointing to GitHub:
-   ```lua
-   loadstring(game:HttpGet("https://raw.githubusercontent.com/dkhub43221/scripts/refs/heads/main/Loaders",true))()
-   ```
-
-2. **GitHub Loaders** (`dk-hub-loader.lua`) contains the actual DK Hub key system UI and game routing logic. It:
-   - Loads a webhook tracker script
-   - Displays a key verification GUI with a "DK's HUB" title
-   - Routes to game-specific scripts based on `game.PlaceId`
-   - Supported games include: Tha Bronx 3 (main + VC server), Miami Streets, Streetz Warz 2, Philly Streetz 2, Cali Shoot Out, and Bronx: Duels
-
-3. **Game-specific scripts** (e.g. for Tha Bronx 3) are loaded from Luarmor and are obfuscated.
 
 ### Files
 
-- `dk-hub-loader.lua` - The full DK Hub loader script (key system + game router)
+- `dk-hub-loader.lua` - The full loader script (auto-loads, no key needed)
