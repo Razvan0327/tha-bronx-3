@@ -11,9 +11,9 @@ Combined loader script with:
 ### Usage
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Razvan0327/tha-bronx-3/main/dk-hub-loader.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Razvan0327/tha-bronx-3/main/Xenon.lua"))()
 ```
 
 ### Files
 
-- `dk-hub-loader.lua` - The combined Xenon loader + game script (single file, no key)
+- `Xenon.lua` - The combined Xenon loader + game script (single file, no key)
