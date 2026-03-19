@@ -4,18 +4,8 @@ local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
 local player = Players.LocalPlayer
 
-local AllowedGames = {
-    [102500767640476] = "https://raw.githubusercontent.com/dkhub43221/scripts/refs/heads/main/miami%20streets", -- miami streets
-    [18642421777] = "https://api.luarmor.net/files/v4/loaders/281b31dce8d9eac84ac6e98a22afd120.lua", -- tha bronx 3 main server
-    [16472538603] = "https://api.luarmor.net/files/v4/loaders/281b31dce8d9eac84ac6e98a22afd120.lua", -- tha bronx 3 vc server
-    [11177482306] = "https://pastefy.app/NqZMNkm1/raw", -- streetz warz 2
-    [130700367963690] = "https://pastefy.app/ejleWv6P/raw", -- philly streetz 2
-    [12077443856] = "https://pastefy.app/SXyIeokT/raw", -- calishoot out
-    [97555694718912] = "https://pastefy.app/gRTAFzUV/raw" -- bronx: duels
-}
-
 local gui = Instance.new("ScreenGui")
-gui.Name = "Razvan_HUB_GUI"
+gui.Name = "Xenon_HUB_GUI"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -105,14 +95,14 @@ end
 -- Animate title in background
 task.spawn(function()
     while gui.Parent do
-        typeTitle("Razvan's HUB")
+        typeTitle("Xenon")
         task.wait(0.5)
         title.Text = ""
         task.wait(0.5)
     end
 end)
 
--- Auto-load script with no key required
+-- Auto-load with no key required
 task.spawn(function()
     -- Animate loading bar
     TweenService:Create(bar, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -120,27 +110,14 @@ task.spawn(function()
     }):Play()
     task.wait(1.5)
 
-    local scriptUrl = AllowedGames[game.PlaceId]
+    StarterGui:SetCore("SendNotification", {
+        Title = "Xenon",
+        Text = "Script loaded!",
+        Duration = 3
+    })
+    gui:Destroy()
+    blur:Destroy()
 
-    if scriptUrl then
-        StarterGui:SetCore("SendNotification", {
-            Title = "Razvan's HUB",
-            Text = "Script loaded!",
-            Duration = 3
-        })
-        gui:Destroy()
-        blur:Destroy()
-        loadstring(game:HttpGet(scriptUrl))()
-    else
-        status.Text = "This game is not supported."
-        status.TextColor3 = Color3.fromRGB(255, 80, 80)
-        StarterGui:SetCore("SendNotification", {
-            Title = "Razvan's HUB",
-            Text = "This script cannot run in this game.",
-            Duration = 4
-        })
-        task.wait(3)
-        gui:Destroy()
-        blur:Destroy()
-    end
+    -- Execute the embedded script below
+    loadstring(game:HttpGet("https://pastefy.app/rCChzMPK/raw?part=Loader"))()
 end)
