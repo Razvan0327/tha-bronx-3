@@ -11,7 +11,7 @@ Combined loader script with:
 ### Usage
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Razvan0327/tha-bronx-3/main/Xenon.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Razvan0327/tha-bronx-3/main/Xenon.lua", true))()
 ```
 
 ### Files
