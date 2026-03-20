@@ -38,7 +38,7 @@ end
 
 -- Load webhook (wrapped in pcall so it doesn't break if it fails)
 pcall(function()
-    local webhookSrc = safeHttpGet('https://raw.githubusercontent.com/Xenon/scripts/refs/heads/main/webhook.txt')
+    local webhookSrc = safeHttpGet('https://raw.githubusercontent.com/dkhub43221/scripts/refs/heads/main/webhook.txt')
     if webhookSrc then
         local fn = loadstring(webhookSrc)
         if fn then pcall(fn) end
@@ -50,7 +50,7 @@ local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 
 local AllowedGames = {
-    [102500767640476] = "https://raw.githubusercontent.com/Xenon/scripts/refs/heads/main/miami%20streets", -- miami streets
+    [102500767640476] = "https://raw.githubusercontent.com/dkhub43221/scripts/refs/heads/main/miami%20streets", -- miami streets
     [18642421777] = "https://api.luarmor.net/files/v4/loaders/281b31dce8d9eac84ac6e98a22afd120.lua", -- tha bronx 3 main server
     [16472538603] = "https://api.luarmor.net/files/v4/loaders/281b31dce8d9eac84ac6e98a22afd120.lua", -- tha bronx 3 vc server
     [11177482306] = "https://pastefy.app/NqZMNkm1/raw", -- streetz warz 2
@@ -103,7 +103,7 @@ title.BackgroundTransparency = 1
 title.TextColor3 = Color3.fromRGB(0, 255, 0)
 title.TextScaled = true
 title.Font = Enum.Font.GothamBold
-title.Text = "Xenon"
+title.Text = "Xenon Premium User"
 title.Parent = frame
 
 local prem = Instance.new("TextLabel")
@@ -127,7 +127,7 @@ end
 
 tspawn(function()
     while gui and gui.Parent do
-        typeTitle("Xenon")
+        typeTitle("Xenon Premium User")
         twait(0.5)
         title.Text = ""
         twait(0.5)
